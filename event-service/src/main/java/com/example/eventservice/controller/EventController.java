@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/events")
@@ -25,7 +26,11 @@ public class EventController {
     // Dummy data constants
     private static final String DUMMY_EVENT_ID = "550e8400-e29b-41d4-a716-446655440000";
     private static final String DUMMY_BUSINESS_ID = "123e4567-e89b-12d3-a456-426614174000";
-    private static final String DUMMY_BUSINESS_NAME = "Tech Corp";
+    private static final Map<String, String> DUMMY_BUSINESS_NAMES = Map.of(
+            "123e4567-e89b-12d3-a456-426614174000", "Tech Corp",
+            "123e4567-e89b-12d3-a456-426614174001", "City Sounds",
+            "123e4567-e89b-12d3-a456-426614174002", "Global Bites"
+    );
 
     @PostMapping
     @Operation(
@@ -121,35 +126,7 @@ public class EventController {
         // 2. Apply pagination
         // 3. Query database
         
-        List<EventResponse> dummyEvents = Arrays.asList(
-            new EventResponse(
-                "550e8400-e29b-41d4-a716-446655440000",
-                "Tech Conference 2026",
-                "Annual technology conference",
-                "2026-06-15T09:00:00Z",
-                "2026-06-15T17:00:00Z",
-                "Convention Center",
-                "123e4567-e89b-12d3-a456-426614174000"
-            ),
-            new EventResponse(
-                "550e8400-e29b-41d4-a716-446655440001",
-                "Music Festival",
-                "Summer music festival featuring local artists",
-                "2026-07-20T14:00:00Z",
-                "2026-07-20T23:00:00Z",
-                "City Park",
-                "123e4567-e89b-12d3-a456-426614174001"
-            ),
-            new EventResponse(
-                "550e8400-e29b-41d4-a716-446655440002",
-                "Food Fair",
-                "International food and culture fair",
-                "2026-08-10T11:00:00Z",
-                "2026-08-10T20:00:00Z",
-                "Downtown Square",
-                "123e4567-e89b-12d3-a456-426614174002"
-            )
-        );
+        List<EventResponse> dummyEvents = getDummyEvents();
 
         EventListResponse response = new EventListResponse(dummyEvents, dummyEvents.size(), page);
         return ResponseEntity.ok(response);
@@ -187,22 +164,12 @@ public class EventController {
         // 1. Query database by eventId
         // 2. Return 404 if not found
         
-        EventDetailResponse.BusinessInfo businessInfo = new EventDetailResponse.BusinessInfo(
-            DUMMY_BUSINESS_ID,
-            DUMMY_BUSINESS_NAME
-        );
-
-        EventDetailResponse response = new EventDetailResponse(
-            eventId,
-            "Tech Conference 2026",
-            "Annual technology conference featuring the latest innovations in software development, AI, and cloud computing",
-            "2026-06-15T09:00:00Z",
-            "2026-06-15T17:00:00Z",
-            "Convention Center",
-            businessInfo
-        );
-        
-        return ResponseEntity.ok(response);
+        return getDummyEvents().stream()
+                .filter(event -> event.getEventId().equals(eventId))
+                .findFirst()
+                .map(this::toEventDetailResponse)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @PutMapping("/{eventId}")
@@ -359,5 +326,54 @@ public class EventController {
 
         VenueAvailabilityResponse response = new VenueAvailabilityResponse(venue, dummySlots);
         return ResponseEntity.ok(response);
+    }
+
+    private List<EventResponse> getDummyEvents() {
+        return Arrays.asList(
+                new EventResponse(
+                        "550e8400-e29b-41d4-a716-446655440000",
+                        "Tech Conference 2026",
+                        "Annual technology conference featuring the latest innovations in software development, AI, and cloud computing",
+                        "2026-06-15T09:00:00Z",
+                        "2026-06-15T17:00:00Z",
+                        "Convention Center",
+                        DUMMY_BUSINESS_ID
+                ),
+                new EventResponse(
+                        "550e8400-e29b-41d4-a716-446655440001",
+                        "Music Festival",
+                        "Summer music festival featuring local artists, food trucks, and outdoor performances.",
+                        "2026-07-20T14:00:00Z",
+                        "2026-07-20T23:00:00Z",
+                        "City Park",
+                        "123e4567-e89b-12d3-a456-426614174001"
+                ),
+                new EventResponse(
+                        "550e8400-e29b-41d4-a716-446655440002",
+                        "Food Fair",
+                        "International food and culture fair with tastings, workshops, and family activities.",
+                        "2026-08-10T11:00:00Z",
+                        "2026-08-10T20:00:00Z",
+                        "Downtown Square",
+                        "123e4567-e89b-12d3-a456-426614174002"
+                )
+        );
+    }
+
+    private EventDetailResponse toEventDetailResponse(EventResponse event) {
+        EventDetailResponse.BusinessInfo businessInfo = new EventDetailResponse.BusinessInfo(
+                event.getBusinessId(),
+                DUMMY_BUSINESS_NAMES.getOrDefault(event.getBusinessId(), "Local Organizer")
+        );
+
+        return new EventDetailResponse(
+                event.getEventId(),
+                event.getTitle(),
+                event.getDescription(),
+                event.getStartTime(),
+                event.getEndTime(),
+                event.getVenue(),
+                businessInfo
+        );
     }
 }

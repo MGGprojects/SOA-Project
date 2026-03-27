@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Local Events Hub</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div class="page-shell">
+    <header class="hero">
+        <div class="hero-copy">
+            <p class="eyebrow">Milestone 2 Demo</p>
+            <h1>Discover local events and export them to your calendar.</h1>
+            <p class="hero-text">
+                This frontend talks only to the API gateway. The gateway routes requests to the existing
+                microservices for events and calendar exports.
+            </p>
+            <div class="hero-actions">
+                <button id="refreshButton" class="button button-primary" type="button">Refresh Events</button>
+                <a class="button button-secondary" href="/actuator/health" target="_blank" rel="noreferrer">Gateway Health</a>
+            </div>
+        </div>
+        <section class="hero-card">
+            <p class="hero-card-label">Architecture Flow</p>
+            <ol class="hero-card-list">
+                <li>Frontend requests data from the gateway.</li>
+                <li>Gateway routes `/api/events` to `event-service`.</li>
+                <li>Gateway routes `/api/exports` to `calendar-export-service`.</li>
+                <li>User exports the event to Google, Outlook, or ICS.</li>
+            </ol>
+        </section>
+    </header>
+
+    <main class="content-grid">
+        <section class="panel panel-large">
+            <div class="panel-header">
+                <div>
+                    <p class="panel-kicker">Event Catalog</p>
+                    <h2>Available events</h2>
+                </div>
+                <p id="statusBadge" class="status-badge">Loading events...</p>
+            </div>
+            <div id="eventList" class="event-list" aria-live="polite"></div>
+        </section>
+
+        <aside class="panel panel-side">
+            <div class="panel-header">
+                <div>
+                    <p class="panel-kicker">Event Detail</p>
+                    <h2>Selected event</h2>
+                </div>
+            </div>
+
+            <div id="emptyState" class="empty-state">
+                <h3>Select an event</h3>
+                <p>Click on any event card to inspect its details and export options.</p>
+            </div>
+
+            <div id="eventDetail" class="detail-card hidden">
+                <div class="detail-top">
+                    <p id="detailBusiness" class="detail-business"></p>
+                    <h3 id="detailTitle"></h3>
+                </div>
+
+                <dl class="detail-grid">
+                    <div>
+                        <dt>Date</dt>
+                        <dd id="detailDate"></dd>
+                    </div>
+                    <div>
+                        <dt>Time</dt>
+                        <dd id="detailTime"></dd>
+                    </div>
+                    <div>
+                        <dt>Venue</dt>
+                        <dd id="detailVenue"></dd>
+                    </div>
+                    <div>
+                        <dt>Event ID</dt>
+                        <dd id="detailId" class="detail-id"></dd>
+                    </div>
+                </dl>
+
+                <section class="detail-section">
+                    <h4>Description</h4>
+                    <p id="detailDescription"></p>
+                </section>
+
+                <section class="detail-section">
+                    <div class="exports-header">
+                        <h4>Export to calendar</h4>
+                        <p id="exportStatus" class="export-status">Ready</p>
+                    </div>
+                    <div class="export-actions">
+                        <a id="googleLink" class="button button-primary disabled-link" href="#" target="_blank" rel="noreferrer">Google Calendar</a>
+                        <a id="outlookLink" class="button button-secondary disabled-link" href="#" target="_blank" rel="noreferrer">Outlook</a>
+                        <a id="icsLink" class="button button-tertiary disabled-link" href="#" target="_blank" rel="noreferrer">Download ICS</a>
+                    </div>
+                </section>
+            </div>
+        </aside>
+    </main>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>
