@@ -8,7 +8,10 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class EventCreatedMessage {
-    private Long eventId;
+    private String eventId;
     private String title;
     private String venue;
+    private String startTime;
+    private String endTime;
+    private Long businessId;
 }
