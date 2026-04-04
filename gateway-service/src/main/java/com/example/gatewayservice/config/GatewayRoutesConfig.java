@@ -51,4 +51,12 @@ public class GatewayRoutesConfig {
                 .before(uri("http://localhost:8085"))
                 .build();
     }
+
+    @Bean
+    RouterFunction<ServerResponse> notificationRoutes() {
+        return route("notification-service")
+                .route(request -> request.path().startsWith("/api/notifications/") || "/api/notifications".equals(request.path()), http())
+                .before(uri("http://localhost:8084"))
+                .build();
+    }
 }
