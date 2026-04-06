@@ -1,6 +1,8 @@
 package com.example.eventservice.controller;
 
 import com.example.eventservice.dto.*;
+import com.example.eventservice.security.AuthValidationService;
+import com.example.eventservice.security.AuthenticatedUser;
 import com.example.eventservice.service.EventService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -25,6 +27,7 @@ import java.util.Map;
 public class EventController {
 
     private final EventService eventService;
+    private final AuthValidationService authValidationService;
 
     // ──────────────────────────────────────────────────────────────────────
     // POST /api/events
@@ -55,11 +58,14 @@ public class EventController {
                 )
             )
             @RequestBody CreateEventRequest request,
-            @RequestHeader(value = "X-User-Id", defaultValue = "1") Long userId
+            @RequestHeader(value = "Authorization", required = false) String authHeader
     ) {
         try {
-            EventResponse response = eventService.createEvent(request, userId);
+            AuthenticatedUser authenticatedUser = authValidationService.requireBusinessUser(authHeader);
+            EventResponse response = eventService.createEvent(request, authenticatedUser.getUserId());
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getReason()));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         } catch (IllegalStateException e) {
@@ -144,13 +150,19 @@ public class EventController {
             )
         )
         @RequestBody UpdateEventRequest request,
-        @RequestHeader(value = "X-User-Id", defaultValue = "1") Long userId
+        @RequestHeader(value = "Authorization", required = false) String authHeader
     ) {
         try {
-            return eventService.updateEvent(eventId, request, userId)
+            AuthenticatedUser authenticatedUser = authValidationService.requireBusinessUser(authHeader);
+            return eventService.updateEvent(eventId, request, authenticatedUser.getUserId())
                     .map(response -> ResponseEntity.ok((Object) response))
                     .orElse(ResponseEntity.notFound().build());
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getReason()));
         } catch (IllegalStateException e) {
+            if (e.getMessage().contains("not allowed")) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", e.getMessage()));
+            }
             return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", e.getMessage()));
         }
     }
@@ -172,11 +184,18 @@ public class EventController {
     public ResponseEntity<DeleteEventResponse> deleteEvent(
         @Parameter(description = "Event ID (UUID)", example = "550e8400-e29b-41d4-a716-446655440000")
         @PathVariable String eventId,
-        @RequestHeader(value = "X-User-Id", defaultValue = "1") Long userId
+        @RequestHeader(value = "Authorization", required = false) String authHeader
     ) {
-        return eventService.deleteEvent(eventId, userId)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+        try {
+            AuthenticatedUser authenticatedUser = authValidationService.requireBusinessUser(authHeader);
+            return eventService.deleteEvent(eventId, authenticatedUser.getUserId())
+                    .map(ResponseEntity::ok)
+                    .orElse(ResponseEntity.notFound().build());
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).build();
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
     }
 
     // ──────────────────────────────────────────────────────────────────────

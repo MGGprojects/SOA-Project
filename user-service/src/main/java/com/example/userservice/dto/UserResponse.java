@@ -8,6 +8,9 @@ public class UserResponse {
     @Schema(description = "User UUID", example = "123e4567-e89b-12d3-a456-426614174000")
     private String userId;
 
+    @Schema(description = "Auth service user ID", example = "1")
+    private Long authUserId;
+
     @Schema(description = "User's email address", example = "john.doe@example.com")
     private String email;
 
@@ -22,8 +25,9 @@ public class UserResponse {
 
     public UserResponse() {}
 
-    public UserResponse(String userId, String email, String firstName, String lastName, String createdAt) {
+    public UserResponse(String userId, Long authUserId, String email, String firstName, String lastName, String createdAt) {
         this.userId = userId;
+        this.authUserId = authUserId;
         this.email = email;
         this.firstName = firstName;
         this.lastName = lastName;
@@ -32,6 +36,9 @@ public class UserResponse {
 
     public String getUserId() { return userId; }
     public void setUserId(String userId) { this.userId = userId; }
+
+    public Long getAuthUserId() { return authUserId; }
+    public void setAuthUserId(Long authUserId) { this.authUserId = authUserId; }
 
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }

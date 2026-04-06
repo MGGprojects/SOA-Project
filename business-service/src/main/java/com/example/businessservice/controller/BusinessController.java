@@ -1,6 +1,8 @@
 package com.example.businessservice.controller;
 
 import com.example.businessservice.dto.*;
+import com.example.businessservice.security.AuthValidationService;
+import com.example.businessservice.security.AuthenticatedUser;
 import com.example.businessservice.service.BusinessService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -21,6 +23,7 @@ import java.util.List;
 public class BusinessController {
 
     private final BusinessService businessService;
+    private final AuthValidationService authValidationService;
 
     // ──────────────────────────────────────────────────────────────────────
     // POST /api/businesses
@@ -36,9 +39,10 @@ public class BusinessController {
     })
     public ResponseEntity<BusinessProfileResponse> createBusiness(
             @RequestBody CreateBusinessRequest request,
-            @RequestHeader(value = "X-User-Id", defaultValue = "1") Long ownerId) {
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
 
-        BusinessProfileResponse response = businessService.createBusiness(request, ownerId);
+        AuthenticatedUser authenticatedUser = authValidationService.requireBusinessUser(authHeader);
+        BusinessProfileResponse response = businessService.createBusiness(request, authenticatedUser.getUserId());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -76,11 +80,19 @@ public class BusinessController {
     })
     public ResponseEntity<BusinessProfileResponse> updateBusiness(
             @Parameter(description = "Business ID") @PathVariable Long businessId,
-            @RequestBody CreateBusinessRequest request) {
+            @RequestBody CreateBusinessRequest request,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        try {
+            AuthenticatedUser authenticatedUser = authValidationService.requireBusinessUser(authHeader);
 
-        return businessService.updateBusiness(businessId, request)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+            return businessService.updateBusiness(businessId, request, authenticatedUser.getUserId())
+                    .map(ResponseEntity::ok)
+                    .orElse(ResponseEntity.notFound().build());
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).build();
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
     }
 
     // ──────────────────────────────────────────────────────────────────────

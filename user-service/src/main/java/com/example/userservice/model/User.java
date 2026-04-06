@@ -21,6 +21,9 @@ public class User {
     private String id;
 
     @Column(nullable = false, unique = true)
+    private Long authUserId;
+
+    @Column(nullable = false, unique = true)
     private String email;
 
     @Column(nullable = false)
