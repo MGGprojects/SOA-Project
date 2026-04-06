@@ -3,6 +3,9 @@ package com.example.calendarexportservice.service;
 import com.example.calendarexportservice.client.EventClient;
 import com.example.calendarexportservice.dto.CalendarLinksResponse;
 import com.example.calendarexportservice.dto.EventDetailResponse;
+import feign.FeignException;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.net.URLEncoder;
@@ -12,6 +15,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 
 @Service
+@Slf4j
 public class CalendarExportService {
 
     private static final DateTimeFormatter ICS_DATE_FORMAT =
@@ -19,15 +23,21 @@ public class CalendarExportService {
 
     private final EventClient eventClient;
 
+    @Value("${server.port:8085}")
+    private String serverPort;
+
     public CalendarExportService(EventClient eventClient) {
         this.eventClient = eventClient;
     }
 
     /**
-     * Fetches event details from the Event Service and generates an .ics calendar file content.
+     * Fetches event details from the Event Service via Feign and generates an .ics calendar file content.
+     *
+     * @throws EventNotFoundException if the event is not found (404 from Event Service)
+     * @throws EventServiceUnavailableException if the Event Service is unreachable
      */
     public String generateIcsFile(String eventId) {
-        EventDetailResponse event = eventClient.getEventById(eventId);
+        EventDetailResponse event = fetchEvent(eventId);
 
         String startFormatted = formatToIcs(event.getStartTime());
         String endFormatted = formatToIcs(event.getEndTime());
@@ -55,17 +65,44 @@ public class CalendarExportService {
     }
 
     /**
-     * Fetches event details from the Event Service and generates calendar links
+     * Fetches event details from the Event Service via Feign and generates calendar links
      * for Google Calendar, Outlook, and a generic .ics download link.
+     *
+     * @throws EventNotFoundException if the event is not found (404 from Event Service)
+     * @throws EventServiceUnavailableException if the Event Service is unreachable
      */
     public CalendarLinksResponse generateCalendarLinks(String eventId) {
-        EventDetailResponse event = eventClient.getEventById(eventId);
+        EventDetailResponse event = fetchEvent(eventId);
 
         String googleLink = buildGoogleCalendarLink(event);
         String outlookLink = buildOutlookCalendarLink(event);
         String calendarLink = buildIcsDownloadLink(eventId);
 
         return new CalendarLinksResponse(calendarLink, googleLink, outlookLink);
+    }
+
+    /**
+     * Fetches event details from the Event Service.
+     * Translates Feign exceptions into domain-specific exceptions.
+     */
+    private EventDetailResponse fetchEvent(String eventId) {
+        try {
+            EventDetailResponse event = eventClient.getEventById(eventId);
+            if (event == null) {
+                throw new EventNotFoundException("Event not found: " + eventId);
+            }
+            return event;
+        } catch (FeignException.NotFound e) {
+            log.warn("Event not found in Event Service: eventId={}", eventId);
+            throw new EventNotFoundException("Event not found: " + eventId);
+        } catch (FeignException e) {
+            log.error("Error calling Event Service for eventId={}: status={}, message={}",
+                    eventId, e.status(), e.getMessage());
+            throw new EventServiceUnavailableException("Event Service unavailable: " + e.getMessage());
+        } catch (Exception e) {
+            log.error("Unexpected error calling Event Service for eventId={}: {}", eventId, e.getMessage());
+            throw new EventServiceUnavailableException("Event Service unavailable: " + e.getMessage());
+        }
     }
 
     private String buildGoogleCalendarLink(EventDetailResponse event) {
@@ -89,7 +126,7 @@ public class CalendarExportService {
     }
 
     private String buildIcsDownloadLink(String eventId) {
-        return "http://localhost:8085/api/exports/events/" + eventId;
+        return "http://localhost:" + serverPort + "/api/exports/events/" + eventId;
     }
 
     private String formatToIcs(String isoDateTime) {
@@ -108,5 +145,19 @@ public class CalendarExportService {
     private String urlEncode(String value) {
         if (value == null) return "";
         return URLEncoder.encode(value, StandardCharsets.UTF_8);
+    }
+
+    // ── Custom exception classes ─────────────────────────────────────────
+
+    public static class EventNotFoundException extends RuntimeException {
+        public EventNotFoundException(String message) {
+            super(message);
+        }
+    }
+
+    public static class EventServiceUnavailableException extends RuntimeException {
+        public EventServiceUnavailableException(String message) {
+            super(message);
+        }
     }
 }

@@ -1,6 +1,7 @@
 package com.example.userservice.controller;
 
 import com.example.userservice.dto.*;
+import com.example.userservice.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -8,140 +9,173 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.Instant;
-import java.util.List;
 import java.util.Map;
 
 @RestController
 @RequestMapping("/api/users")
 @Tag(name = "User Management", description = "Endpoints for managing user profiles and favorite events")
+@RequiredArgsConstructor
 public class UserController {
 
-    private final String DUMMY_UUID = "123e4567-e89b-12d3-a456-426614174000";
-    private final String DUMMY_EMAIL = "john.doe@example.com";
-    private final String DUMMY_FIRST_NAME = "John";
-    private final String DUMMY_LAST_NAME = "Doe";
-    private final String DUMMY_CREATED_AT = "2025-03-26T14:30:00Z";
+    private final UserService userService;
 
+    // ──────────────────────────────────────────────────────────────────────
+    // POST /api/users
+    // ──────────────────────────────────────────────────────────────────────
     @Operation(
             summary = "Create a new user profile",
             description = "Creates a customer profile. Note: Authentication is handled by Auth Service separately."
     )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "User profile created successfully",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = UserResponse.class)))
+            @ApiResponse(responseCode = "201", description = "User profile created successfully",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = UserResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Bad request – missing required fields or duplicate email")
     })
     @PostMapping
-    public UserResponse createUser(@RequestBody CreateUserRequest request) {
-        return new UserResponse(
-                DUMMY_UUID,
-                request.getEmail() != null ? request.getEmail() : DUMMY_EMAIL,
-                request.getFirstName() != null ? request.getFirstName() : DUMMY_FIRST_NAME,
-                request.getLastName() != null ? request.getLastName() : DUMMY_LAST_NAME,
-                Instant.now().toString()
-        );
+    public ResponseEntity<?> createUser(@RequestBody CreateUserRequest request) {
+        try {
+            UserResponse response = userService.createUser(request);
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
     }
 
+    // ──────────────────────────────────────────────────────────────────────
+    // GET /api/users/{userId}
+    // ──────────────────────────────────────────────────────────────────────
     @Operation(
             summary = "Get user profile",
-            description = "Returns user profile. Only the user themselves can access (auth required)."
+            description = "Returns user profile by ID."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "User profile returned successfully",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = UserResponse.class)))
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = UserResponse.class))),
+            @ApiResponse(responseCode = "404", description = "User not found")
     })
     @GetMapping("/{userId}")
-    public UserResponse getUser(
+    public ResponseEntity<UserResponse> getUser(
             @Parameter(description = "The UUID of the user", required = true, example = "123e4567-e89b-12d3-a456-426614174000")
             @PathVariable String userId,
-            @Parameter(description = "JWT Token", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...")
+            @Parameter(description = "JWT Token", example = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...")
             @RequestHeader(value = "Authorization", required = false) String authHeader) {
-        return new UserResponse(userId, DUMMY_EMAIL, DUMMY_FIRST_NAME, DUMMY_LAST_NAME, DUMMY_CREATED_AT);
+
+        return userService.getUser(userId)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 
+    // ──────────────────────────────────────────────────────────────────────
+    // PUT /api/users/{userId}
+    // ──────────────────────────────────────────────────────────────────────
     @Operation(
             summary = "Update user profile",
-            description = "Updates user profile. Only the user themselves can update (auth required)."
+            description = "Updates user profile. Only provided (non-null) fields are updated."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "User profile updated successfully",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = UserResponse.class)))
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = UserResponse.class))),
+            @ApiResponse(responseCode = "404", description = "User not found")
     })
     @PutMapping("/{userId}")
-    public UserResponse updateUser(
+    public ResponseEntity<UserResponse> updateUser(
             @Parameter(description = "The UUID of the user", required = true, example = "123e4567-e89b-12d3-a456-426614174000")
             @PathVariable String userId,
             @RequestBody UpdateUserRequest request,
-            @Parameter(description = "JWT Token", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...")
+            @Parameter(description = "JWT Token", example = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...")
             @RequestHeader(value = "Authorization", required = false) String authHeader) {
-        return new UserResponse(
-                userId,
-                DUMMY_EMAIL,
-                request.getFirstName() != null ? request.getFirstName() : DUMMY_FIRST_NAME,
-                request.getLastName() != null ? request.getLastName() : DUMMY_LAST_NAME,
-                DUMMY_CREATED_AT
-        );
+
+        return userService.updateUser(userId, request)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 
+    // ──────────────────────────────────────────────────────────────────────
+    // POST /api/users/{userId}/favorites/events/{eventId}
+    // ──────────────────────────────────────────────────────────────────────
     @Operation(
             summary = "Add event to favorites",
-            description = "Adds an event to user's favorites. Only the user themselves can add (auth required)."
+            description = "Adds an event to user's favorites."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Event added to favorites",
-                    content = @Content(mediaType = "application/json", schema = @Schema(example = "{\"message\":\"Event added to favorites\"}")))
+                    content = @Content(mediaType = "application/json", schema = @Schema(example = "{\"message\":\"Event added to favorites\"}"))),
+            @ApiResponse(responseCode = "404", description = "User not found")
     })
     @PostMapping("/{userId}/favorites/events/{eventId}")
-    public Map<String, String> addFavoriteEvent(
+    public ResponseEntity<Map<String, String>> addFavoriteEvent(
             @Parameter(description = "The UUID of the user", required = true, example = "123e4567-e89b-12d3-a456-426614174000")
             @PathVariable String userId,
             @Parameter(description = "The ID of the event to add to favorites", required = true, example = "evt-001")
             @PathVariable String eventId,
-            @Parameter(description = "JWT Token", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...")
+            @Parameter(description = "JWT Token", example = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...")
             @RequestHeader(value = "Authorization", required = false) String authHeader) {
-        return Map.of("message", "Event added to favorites");
+
+        boolean success = userService.addFavoriteEvent(userId, eventId);
+        if (!success) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(Map.of("message", "Event added to favorites"));
     }
 
+    // ──────────────────────────────────────────────────────────────────────
+    // DELETE /api/users/{userId}/favorites/events/{eventId}
+    // ──────────────────────────────────────────────────────────────────────
     @Operation(
             summary = "Remove event from favorites",
-            description = "Removes an event from user's favorites. Only the user themselves can remove (auth required)."
+            description = "Removes an event from user's favorites."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Event removed from favorites",
-                    content = @Content(mediaType = "application/json", schema = @Schema(example = "{\"message\":\"Event removed from favorites\"}")))
+                    content = @Content(mediaType = "application/json", schema = @Schema(example = "{\"message\":\"Event removed from favorites\"}"))),
+            @ApiResponse(responseCode = "404", description = "User not found")
     })
     @DeleteMapping("/{userId}/favorites/events/{eventId}")
-    public Map<String, String> removeFavoriteEvent(
+    public ResponseEntity<Map<String, String>> removeFavoriteEvent(
             @Parameter(description = "The UUID of the user", required = true, example = "123e4567-e89b-12d3-a456-426614174000")
             @PathVariable String userId,
             @Parameter(description = "The ID of the event to remove from favorites", required = true, example = "evt-001")
             @PathVariable String eventId,
-            @Parameter(description = "JWT Token", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...")
+            @Parameter(description = "JWT Token", example = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...")
             @RequestHeader(value = "Authorization", required = false) String authHeader) {
-        return Map.of("message", "Event removed from favorites");
+
+        boolean success = userService.removeFavoriteEvent(userId, eventId);
+        if (!success) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(Map.of("message", "Event removed from favorites"));
     }
 
+    // ──────────────────────────────────────────────────────────────────────
+    // GET /api/users/{userId}/favorites/events
+    // ──────────────────────────────────────────────────────────────────────
     @Operation(
             summary = "Get user's favorite events",
-            description = "Returns user's favorite events with pagination. Only the user themselves can access (auth required)."
+            description = "Returns user's favorite events with pagination."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Favorite events returned successfully",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = FavoriteEventsResponse.class)))
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = FavoriteEventsResponse.class))),
+            @ApiResponse(responseCode = "404", description = "User not found")
     })
     @GetMapping("/{userId}/favorites/events")
-    public FavoriteEventsResponse getFavoriteEvents(
+    public ResponseEntity<FavoriteEventsResponse> getFavoriteEvents(
             @Parameter(description = "The UUID of the user", required = true, example = "123e4567-e89b-12d3-a456-426614174000")
             @PathVariable String userId,
             @Parameter(description = "Page number", example = "1")
             @RequestParam(value = "page", defaultValue = "1") int page,
             @Parameter(description = "Number of items per page", example = "20")
             @RequestParam(value = "limit", defaultValue = "20") int limit,
-            @Parameter(description = "JWT Token", required = true, example = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...")
+            @Parameter(description = "JWT Token", example = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...")
             @RequestHeader(value = "Authorization", required = false) String authHeader) {
-        List<String> dummyEvents = List.of("evt-001", "evt-002", "evt-003");
-        return new FavoriteEventsResponse(dummyEvents, dummyEvents.size());
+
+        return userService.getFavoriteEvents(userId, page, limit)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 }

@@ -9,5 +9,6 @@ public class CreateEventRequest {
     private String startTime;
     private String endTime;
     private String venue;
+    private String city;
     private String businessId;
 }

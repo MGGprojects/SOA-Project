@@ -1,0 +1,16 @@
+services:
+  event-db:
+    image: postgres:16-alpine
+    container_name: event-postgres
+    restart: unless-stopped
+    ports:
+      - "5082:5432"
+    environment:
+      POSTGRES_DB: event_db
+      POSTGRES_USER: db_user
+      POSTGRES_PASSWORD: db_password
+    volumes:
+      - event_pgdata:/var/lib/postgresql/data
+
+volumes:
+  event_pgdata:

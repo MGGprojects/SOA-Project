@@ -11,9 +11,12 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/exports")
@@ -30,12 +33,8 @@ public class CalendarExportController {
     @Operation(
         summary = "Export event as .ics file",
         description = "Generates and returns an .ics calendar file for a specific event. "
-                + "The service internally calls the Event Service to fetch event details.\n\n"
-                + "**Note:** This endpoint calls the Event Service at http://localhost:8082 to retrieve event data, "
-                + "then generates a standard iCalendar (.ics) file.\n\n"
-                + "**Dummy Values (from Event Service):**\n"
-                + "- eventId: any UUID (e.g., \"550e8400-e29b-41d4-a716-446655440000\")\n"
-                + "- Returns .ics file with event details from Event Service"
+                + "The service calls the Event Service via Feign to fetch event details, "
+                + "then generates a standard iCalendar (.ics) file."
     )
     @ApiResponses(value = {
         @ApiResponse(
@@ -51,31 +50,35 @@ public class CalendarExportController {
         @ApiResponse(responseCode = "404", description = "Event not found"),
         @ApiResponse(responseCode = "502", description = "Event Service unavailable")
     })
-    public ResponseEntity<byte[]> exportEventAsIcs(
-        @Parameter(description = "Event ID", example = "550e8400-e29b-41d4-a716-446655440000")
+    public ResponseEntity<?> exportEventAsIcs(
+        @Parameter(description = "Event ID (UUID)", example = "550e8400-e29b-41d4-a716-446655440000")
         @PathVariable String eventId
     ) {
-        String icsContent = calendarExportService.generateIcsFile(eventId);
+        try {
+            String icsContent = calendarExportService.generateIcsFile(eventId);
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.parseMediaType("text/calendar"));
-        headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"event.ics\"");
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.parseMediaType("text/calendar"));
+            headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"event.ics\"");
 
-        return ResponseEntity.ok()
-                .headers(headers)
-                .body(icsContent.getBytes());
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .body(icsContent.getBytes());
+        } catch (CalendarExportService.EventNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", e.getMessage()));
+        } catch (CalendarExportService.EventServiceUnavailableException e) {
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                    .body(Map.of("error", e.getMessage()));
+        }
     }
 
     @GetMapping("/events/{eventId}/link")
     @Operation(
         summary = "Get calendar links for an event",
         description = "Returns pre-formatted calendar links for Google Calendar, Outlook, and a direct .ics download link "
-                + "for easy one-click adding of an event to a calendar.\n\n"
-                + "**Note:** This endpoint calls the Event Service at http://localhost:8082 to retrieve event data, "
-                + "then generates calendar links.\n\n"
-                + "**Dummy Values (from Event Service):**\n"
-                + "- eventId: any UUID (e.g., \"550e8400-e29b-41d4-a716-446655440000\")\n"
-                + "- Returns Google Calendar, Outlook, and .ics download links"
+                + "for easy one-click adding of an event to a calendar. "
+                + "The service calls the Event Service via Feign to retrieve event data."
     )
     @ApiResponses(value = {
         @ApiResponse(
@@ -83,20 +86,25 @@ public class CalendarExportController {
             description = "Calendar links generated successfully",
             content = @Content(
                 mediaType = "application/json",
-                schema = @Schema(implementation = CalendarLinksResponse.class),
-                examples = @ExampleObject(
-                    value = "{\"calendarLink\":\"http://localhost:8085/api/exports/events/550e8400-e29b-41d4-a716-446655440000\",\"googleLink\":\"https://calendar.google.com/calendar/render?action=TEMPLATE&text=Tech+Conference+2026&dates=20260615T090000Z/20260615T170000Z&details=Annual+technology+conference&location=Convention+Center\",\"outlookLink\":\"https://outlook.live.com/calendar/0/action/compose?allday=false&subject=Tech+Conference+2026&startdt=2026-06-15T09%3A00%3A00Z&enddt=2026-06-15T17%3A00%3A00Z&body=Annual+technology+conference&location=Convention+Center\"}"
-                )
+                schema = @Schema(implementation = CalendarLinksResponse.class)
             )
         ),
         @ApiResponse(responseCode = "404", description = "Event not found"),
         @ApiResponse(responseCode = "502", description = "Event Service unavailable")
     })
-    public ResponseEntity<CalendarLinksResponse> getCalendarLinks(
-        @Parameter(description = "Event ID", example = "550e8400-e29b-41d4-a716-446655440000")
+    public ResponseEntity<?> getCalendarLinks(
+        @Parameter(description = "Event ID (UUID)", example = "550e8400-e29b-41d4-a716-446655440000")
         @PathVariable String eventId
     ) {
-        CalendarLinksResponse response = calendarExportService.generateCalendarLinks(eventId);
-        return ResponseEntity.ok(response);
+        try {
+            CalendarLinksResponse response = calendarExportService.generateCalendarLinks(eventId);
+            return ResponseEntity.ok(response);
+        } catch (CalendarExportService.EventNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", e.getMessage()));
+        } catch (CalendarExportService.EventServiceUnavailableException e) {
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                    .body(Map.of("error", e.getMessage()));
+        }
     }
 }

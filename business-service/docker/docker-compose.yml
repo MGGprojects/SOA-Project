@@ -1,0 +1,16 @@
+services:
+  business-db:
+    image: postgres:16-alpine
+    container_name: business-postgres
+    restart: unless-stopped
+    ports:
+      - "5083:5432"
+    environment:
+      POSTGRES_DB: business_db
+      POSTGRES_USER: db_user
+      POSTGRES_PASSWORD: db_password
+    volumes:
+      - business_pgdata:/var/lib/postgresql/data
+
+volumes:
+  business_pgdata:
