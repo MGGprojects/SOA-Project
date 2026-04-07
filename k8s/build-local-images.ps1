@@ -19,7 +19,14 @@ foreach ($service in $services) {
     if ($LASTEXITCODE -ne 0) {
         throw "Docker build failed for $($service.Image)"
     }
+
+    Write-Host "Loading $($service.Image) into minikube..." -ForegroundColor Yellow
+    minikube image load $service.Image
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "minikube image load failed for $($service.Image)"
+    }
 }
 
 Write-Host ""
-Write-Host "All local images were built." -ForegroundColor Green
+Write-Host "All local images were built and loaded into minikube." -ForegroundColor Green
