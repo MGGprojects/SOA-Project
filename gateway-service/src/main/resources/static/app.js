@@ -32,6 +32,7 @@ const protectedStatus = document.getElementById("protectedStatus");
 const businessContactEmail = document.getElementById("businessContactEmail");
 const eventBusinessId = document.getElementById("eventBusinessId");
 const toastContainer = document.getElementById("toastContainer");
+const detailMap = document.getElementById("detailMap");
 
 let selectedEventId = null;
 let session = loadSession();
@@ -307,6 +308,7 @@ async function loadEventDetail(eventId) {
         detailVenue.textContent = "-";
         detailId.textContent = eventId;
         detailDescription.textContent = error.message;
+        detailMap.src = "";
     }
 }
 
@@ -419,6 +421,14 @@ async function parseJson(response) {
     }
 }
 
+function buildGoogleMapsEmbedUrl(venue, city) {
+    const query = [venue, city, "Netherlands"]
+        .filter(Boolean)
+        .join(", ");
+
+    return `https://maps.google.com/maps?q=${encodeURIComponent(query)}&z=15&output=embed`;
+}
+
 function toUtcIsoString(value) {
     return new Date(value).toISOString();
 }
@@ -442,12 +452,15 @@ function renderDetail(event) {
     detailBusiness.textContent = event.business?.name
         ? `Hosted by ${event.business.name}`
         : `Business ID ${event.businessId || "not available"}`;
+
     detailTitle.textContent = event.title || "Untitled event";
     detailDate.textContent = formatDate(event.startTime);
     detailTime.textContent = `${formatTime(event.startTime)} - ${formatTime(event.endTime)}`;
     detailVenue.textContent = event.venue || "TBD";
     detailId.textContent = event.eventId || selectedEventId || "-";
     detailDescription.textContent = event.description || "No description available.";
+
+    detailMap.src = buildGoogleMapsEmbedUrl(event.venue, event.city);
 }
 
 function showDetailShell() {
@@ -461,6 +474,7 @@ function clearDetail() {
     eventDetail.classList.add("hidden");
     clearExportLinks();
     exportStatus.textContent = "Ready";
+    detailMap.src = "";
 }
 
 function clearExportLinks() {

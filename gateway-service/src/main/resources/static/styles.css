@@ -580,3 +580,17 @@ h1 {
         align-items: flex-start;
     }
 }
+
+.map-wrapper {
+    width: 100%;
+    border-radius: 16px;
+    overflow: hidden;
+    margin-top: 0.5rem;
+}
+
+.detail-map {
+    width: 100%;
+    height: 260px;
+    border: 0;
+    display: block;
+}
