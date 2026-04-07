@@ -8,16 +8,19 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 </head>
 <body>
+<div id="toastContainer" class="toast-container" aria-live="polite"></div>
 <div class="page-shell">
     <header class="hero">
         <div class="hero-copy">
-            <p class="eyebrow">Milestone 2 Demo</p>
+            <p class="eyebrow">Milestone 45 Demo</p>
             <h1>Discover local events and export them to your calendar.</h1>
             <p class="hero-text">
                 This frontend talks only to the API gateway. The gateway routes requests to the existing
-                microservices for events and calendar exports.
+                microservices for events, calendar exports, authentication, and protected business actions.
             </p>
             <div class="hero-actions">
                 <button id="refreshButton" class="button button-primary" type="button">Refresh Events</button>
@@ -28,12 +31,161 @@
             <p class="hero-card-label">Architecture Flow</p>
             <ol class="hero-card-list">
                 <li>Frontend requests data from the gateway.</li>
-                <li>Gateway routes `/api/events` to `event-service`.</li>
-                <li>Gateway routes `/api/exports` to `calendar-export-service`.</li>
-                <li>User exports the event to Google, Outlook, or ICS.</li>
+                <li>Gateway routes `/api/auth` to `auth-service` for login and JWT validation.</li>
+                <li>Gateway routes `/api/events` and `/api/businesses` to protected backend services.</li>
+                <li>User can browse public data or log in to perform protected actions.</li>
             </ol>
         </section>
     </header>
+
+    <section class="content-grid auth-grid">
+        <section class="panel panel-large">
+            <div class="panel-header">
+                <div>
+                    <p class="panel-kicker">Authentication</p>
+                    <h2>Sign in to protected actions</h2>
+                </div>
+                <p id="sessionBadge" class="status-badge neutral-badge">Guest mode</p>
+            </div>
+
+            <div class="auth-layout">
+                <article class="detail-card">
+                    <h3>Create auth account</h3>
+                    <p class="form-help">Register a CUSTOMER or BUSINESS identity through the gateway.</p>
+                    <form id="registerForm" class="form-stack">
+                        <label class="field">
+                            <span>Email</span>
+                            <input id="registerEmail" type="email" required placeholder="business@example.com">
+                        </label>
+                        <label class="field">
+                            <span>Password</span>
+                            <input id="registerPassword" type="password" required minlength="8" placeholder="Password123">
+                        </label>
+                        <label class="field">
+                            <span>Role</span>
+                            <select id="registerRole">
+                                <option value="CUSTOMER">CUSTOMER</option>
+                                <option value="BUSINESS">BUSINESS</option>
+                            </select>
+                        </label>
+                        <button class="button button-primary" type="submit">Register</button>
+                    </form>
+                </article>
+
+                <article class="detail-card">
+                    <h3>Login</h3>
+                    <p class="form-help">A successful login stores the JWT in the browser so protected requests can use it.</p>
+                    <form id="loginForm" class="form-stack">
+                        <label class="field">
+                            <span>Email</span>
+                            <input id="loginEmail" type="email" required placeholder="business@example.com">
+                        </label>
+                        <label class="field">
+                            <span>Password</span>
+                            <input id="loginPassword" type="password" required placeholder="Password123">
+                        </label>
+                        <div class="inline-actions">
+                            <button class="button button-primary" type="submit">Login</button>
+                            <button id="logoutButton" class="button button-tertiary" type="button">Logout</button>
+                        </div>
+                    </form>
+                    <div id="sessionSummary" class="session-summary">
+                        <p><strong>User ID:</strong> <span id="sessionUserId">-</span></p>
+                        <p><strong>Email:</strong> <span id="sessionEmail">-</span></p>
+                        <p><strong>Role:</strong> <span id="sessionRole">-</span></p>
+                    </div>
+                </article>
+            </div>
+
+            <div id="authStatus" class="inline-status" aria-live="polite">Ready.</div>
+        </section>
+
+        <section class="panel panel-side">
+            <div class="panel-header">
+                <div>
+                    <p class="panel-kicker">Protected Actions</p>
+                    <h2>Business flow</h2>
+                </div>
+            </div>
+
+            <div class="detail-card">
+                <p class="form-help">These forms send the JWT to protected endpoints through the gateway.</p>
+                <div class="mini-banner">
+                    <span class="mini-banner-pill">Step 1</span>
+                    <p>Create a business first. The generated business ID will be inserted automatically into the event form below.</p>
+                </div>
+
+                <form id="businessForm" class="form-stack">
+                    <h3>Create business</h3>
+                    <label class="field">
+                        <span>Name</span>
+                        <input id="businessName" type="text" required placeholder="Tech Corp">
+                    </label>
+                    <label class="field">
+                        <span>Address</span>
+                        <input id="businessAddress" type="text" required placeholder="123 Main Street">
+                    </label>
+                    <label class="field">
+                        <span>City</span>
+                        <input id="businessCity" type="text" required placeholder="Madrid">
+                    </label>
+                    <label class="field">
+                        <span>Contact email</span>
+                        <input id="businessContactEmail" type="email" required placeholder="business@example.com">
+                    </label>
+                    <label class="field">
+                        <span>Phone</span>
+                        <input id="businessPhone" type="text" required placeholder="600123456">
+                    </label>
+                    <label class="field">
+                        <span>Description</span>
+                        <textarea id="businessDescription" rows="3" required placeholder="Short business description"></textarea>
+                    </label>
+                    <button class="button button-primary" type="submit">Create Business</button>
+                </form>
+
+                <form id="eventForm" class="form-stack form-section">
+                    <h3>Create event</h3>
+                    <div class="mini-banner subtle-banner">
+                        <span class="mini-banner-pill">Step 2</span>
+                        <p>Once your business exists, create an event linked to that business from the same logged-in session.</p>
+                    </div>
+                    <label class="field">
+                        <span>Business ID</span>
+                        <input id="eventBusinessId" type="text" required placeholder="Created business ID appears here">
+                    </label>
+                    <label class="field">
+                        <span>Title</span>
+                        <input id="eventTitleInput" type="text" required placeholder="Tech Conference 2026">
+                    </label>
+                    <label class="field">
+                        <span>Description</span>
+                        <textarea id="eventDescriptionInput" rows="3" required placeholder="Event description"></textarea>
+                    </label>
+                    <label class="field">
+                        <span>Venue</span>
+                        <input id="eventVenueInput" type="text" required placeholder="Convention Center">
+                    </label>
+                    <label class="field">
+                        <span>City</span>
+                        <input id="eventCityInput" type="text" required placeholder="Madrid">
+                    </label>
+                    <label class="field">
+                        <span>Start time</span>
+                        <input id="eventStartInput" type="datetime-local" required>
+                    </label>
+                    <label class="field">
+                        <span>End time</span>
+                        <input id="eventEndInput" type="datetime-local" required>
+                    </label>
+                    <p class="form-help compact-help">The UI converts your local date and time into the UTC format expected by the backend.</p>
+                    <button class="button button-primary" type="submit">Create Event</button>
+                </form>
+            </div>
+
+            <div id="protectedStatus" class="inline-status" aria-live="polite">Login as BUSINESS to unlock protected actions.</div>
+        </section>
+    </section>
 
     <main class="content-grid">
         <section class="panel panel-large">
@@ -88,6 +240,11 @@
                 <section class="detail-section">
                     <h4>Description</h4>
                     <p id="detailDescription"></p>
+                </section>
+
+                <section class="detail-section">
+                    <h4>Location</h4>
+                    <div id="map" style="height: 250px; border-radius:12px;"></div>
                 </section>
 
                 <section class="detail-section">

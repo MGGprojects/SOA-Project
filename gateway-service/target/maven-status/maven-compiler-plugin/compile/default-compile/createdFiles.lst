@@ -1,3 +1,3 @@
 com\example\gatewayservice\config\WebConfig.class
-com\example\gatewayservice\config\GatewayRoutesConfig.class
 com\example\gatewayservice\GatewayServiceApplication.class
+com\example\gatewayservice\config\GatewayRoutesConfig.class
