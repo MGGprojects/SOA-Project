@@ -36,6 +36,8 @@ const toastContainer = document.getElementById("toastContainer");
 let selectedEventId = null;
 let session = loadSession();
 
+console.log("APP_JS_VERSION_777777");
+
 refreshButton.addEventListener("click", () => {
     loadEvents();
 });
@@ -438,6 +440,8 @@ function showToast(title, message, tone = "success") {
     }, 5000);
 }
 
+let map = null;
+
 function renderDetail(event) {
     detailBusiness.textContent = event.business?.name
         ? `Hosted by ${event.business.name}`
@@ -448,6 +452,42 @@ function renderDetail(event) {
     detailVenue.textContent = event.venue || "TBD";
     detailId.textContent = event.eventId || selectedEventId || "-";
     detailDescription.textContent = event.description || "No description available.";
+
+    const locationParts = [
+        event.venue,
+        event.city,
+        "Netherlands"
+    ].filter(Boolean);
+
+    const address = locationParts.join(", ");
+
+    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`)
+        .then(res => res.json())
+        .then(data => {
+            if (!data.length) {
+                console.warn("Location not found");
+                return;
+            }
+
+            const lat = parseFloat(data[0].lat);
+            const lon = parseFloat(data[0].lon);
+
+            if (map) {
+                map.remove();
+            }
+
+            map = L.map('map').setView([lat, lon], 16);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+
+            L.marker([lat, lon])
+                .addTo(map)
+                .bindPopup(address)
+                .openPopup();
+        })
+        .catch(err => console.error("Map error:", err));
 }
 
 function showDetailShell() {

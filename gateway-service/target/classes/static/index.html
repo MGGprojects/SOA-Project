@@ -8,13 +8,15 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 </head>
 <body>
 <div id="toastContainer" class="toast-container" aria-live="polite"></div>
 <div class="page-shell">
     <header class="hero">
         <div class="hero-copy">
-            <p class="eyebrow">Milestone 2 Demo</p>
+            <p class="eyebrow">Milestone 45 Demo</p>
             <h1>Discover local events and export them to your calendar.</h1>
             <p class="hero-text">
                 This frontend talks only to the API gateway. The gateway routes requests to the existing
@@ -238,6 +240,11 @@
                 <section class="detail-section">
                     <h4>Description</h4>
                     <p id="detailDescription"></p>
+                </section>
+
+                <section class="detail-section">
+                    <h4>Location</h4>
+                    <div id="map" style="height: 250px; border-radius:12px;"></div>
                 </section>
 
                 <section class="detail-section">
