@@ -1,6 +1,9 @@
 package com.example.userservice.controller;
 
 import com.example.userservice.dto.*;
+import com.example.userservice.model.User;
+import com.example.userservice.security.AuthValidationService;
+import com.example.userservice.security.AuthenticatedUser;
 import com.example.userservice.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -23,6 +26,7 @@ import java.util.Map;
 public class UserController {
 
     private final UserService userService;
+    private final AuthValidationService authValidationService;
 
     // ──────────────────────────────────────────────────────────────────────
     // POST /api/users
@@ -37,10 +41,15 @@ public class UserController {
             @ApiResponse(responseCode = "400", description = "Bad request – missing required fields or duplicate email")
     })
     @PostMapping
-    public ResponseEntity<?> createUser(@RequestBody CreateUserRequest request) {
+    public ResponseEntity<?> createUser(
+            @RequestBody CreateUserRequest request,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
         try {
-            UserResponse response = userService.createUser(request);
+            AuthenticatedUser authenticatedUser = authValidationService.requireAuthenticatedUser(authHeader);
+            UserResponse response = userService.createUser(request, authenticatedUser.getAuthUserId(), authenticatedUser.getEmail());
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getReason()));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
@@ -64,10 +73,18 @@ public class UserController {
             @PathVariable String userId,
             @Parameter(description = "JWT Token", example = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...")
             @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        try {
+            AuthenticatedUser authenticatedUser = authValidationService.requireAuthenticatedUser(authHeader);
+            if (!ownsUserProfile(userId, authenticatedUser.getAuthUserId())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            }
 
-        return userService.getUser(userId)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+            return userService.getUser(userId)
+                    .map(ResponseEntity::ok)
+                    .orElse(ResponseEntity.notFound().build());
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).build();
+        }
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -89,10 +106,18 @@ public class UserController {
             @RequestBody UpdateUserRequest request,
             @Parameter(description = "JWT Token", example = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...")
             @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        try {
+            AuthenticatedUser authenticatedUser = authValidationService.requireAuthenticatedUser(authHeader);
+            if (!ownsUserProfile(userId, authenticatedUser.getAuthUserId())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            }
 
-        return userService.updateUser(userId, request)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+            return userService.updateUser(userId, request)
+                    .map(ResponseEntity::ok)
+                    .orElse(ResponseEntity.notFound().build());
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).build();
+        }
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -115,12 +140,20 @@ public class UserController {
             @PathVariable String eventId,
             @Parameter(description = "JWT Token", example = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...")
             @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        try {
+            AuthenticatedUser authenticatedUser = authValidationService.requireAuthenticatedUser(authHeader);
+            if (!ownsUserProfile(userId, authenticatedUser.getAuthUserId())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            }
 
-        boolean success = userService.addFavoriteEvent(userId, eventId);
-        if (!success) {
-            return ResponseEntity.notFound().build();
+            boolean success = userService.addFavoriteEvent(userId, eventId);
+            if (!success) {
+                return ResponseEntity.notFound().build();
+            }
+            return ResponseEntity.ok(Map.of("message", "Event added to favorites"));
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).build();
         }
-        return ResponseEntity.ok(Map.of("message", "Event added to favorites"));
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -143,12 +176,20 @@ public class UserController {
             @PathVariable String eventId,
             @Parameter(description = "JWT Token", example = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...")
             @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        try {
+            AuthenticatedUser authenticatedUser = authValidationService.requireAuthenticatedUser(authHeader);
+            if (!ownsUserProfile(userId, authenticatedUser.getAuthUserId())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            }
 
-        boolean success = userService.removeFavoriteEvent(userId, eventId);
-        if (!success) {
-            return ResponseEntity.notFound().build();
+            boolean success = userService.removeFavoriteEvent(userId, eventId);
+            if (!success) {
+                return ResponseEntity.notFound().build();
+            }
+            return ResponseEntity.ok(Map.of("message", "Event removed from favorites"));
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).build();
         }
-        return ResponseEntity.ok(Map.of("message", "Event removed from favorites"));
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -173,9 +214,24 @@ public class UserController {
             @RequestParam(value = "limit", defaultValue = "20") int limit,
             @Parameter(description = "JWT Token", example = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...")
             @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        try {
+            AuthenticatedUser authenticatedUser = authValidationService.requireAuthenticatedUser(authHeader);
+            if (!ownsUserProfile(userId, authenticatedUser.getAuthUserId())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            }
 
-        return userService.getFavoriteEvents(userId, page, limit)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+            return userService.getFavoriteEvents(userId, page, limit)
+                    .map(ResponseEntity::ok)
+                    .orElse(ResponseEntity.notFound().build());
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).build();
+        }
+    }
+
+    private boolean ownsUserProfile(String userId, Long authUserId) {
+        return userService.findUserEntity(userId)
+                .map(User::getAuthUserId)
+                .map(ownerAuthUserId -> ownerAuthUserId.equals(authUserId))
+                .orElse(false);
     }
 }

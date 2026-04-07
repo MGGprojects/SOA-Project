@@ -52,9 +52,13 @@ public class BusinessService {
     /**
      * Updates an existing business profile.
      */
-    public Optional<BusinessProfileResponse> updateBusiness(Long businessId, CreateBusinessRequest request) {
+    public Optional<BusinessProfileResponse> updateBusiness(Long businessId, CreateBusinessRequest request, Long ownerId) {
         return businessRepository.findById(businessId)
                 .map(existing -> {
+                    if (!existing.getOwnerId().equals(ownerId)) {
+                        throw new IllegalStateException("User " + ownerId + " is not allowed to update this business");
+                    }
+
                     if (request.getName() != null) existing.setName(request.getName());
                     if (request.getAddress() != null) existing.setAddress(request.getAddress());
                     if (request.getCity() != null) existing.setCity(request.getCity());

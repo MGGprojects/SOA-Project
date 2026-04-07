@@ -24,15 +24,15 @@ public class UserService {
      * Creates a new user profile.
      */
     @Transactional
-    public UserResponse createUser(CreateUserRequest request) {
-        // Check for duplicate email
-        if (userRepository.existsByEmail(request.getEmail())) {
-            throw new IllegalArgumentException("A user with email '" + request.getEmail() + "' already exists");
+    public UserResponse createUser(CreateUserRequest request, Long authUserId, String email) {
+        if (userRepository.findByAuthUserId(authUserId).isPresent()) {
+            throw new IllegalArgumentException("A profile already exists for auth user '" + authUserId + "'");
         }
 
         User user = new User();
         user.setId(UUID.randomUUID().toString());
-        user.setEmail(request.getEmail());
+        user.setAuthUserId(authUserId);
+        user.setEmail(email);
         user.setFirstName(request.getFirstName());
         user.setLastName(request.getLastName());
 
@@ -47,6 +47,12 @@ public class UserService {
     @Transactional(readOnly = true)
     public Optional<UserResponse> getUser(String userId) {
         return userRepository.findById(userId)
+                .map(this::toUserResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<UserResponse> getUserByAuthUserId(Long authUserId) {
+        return userRepository.findByAuthUserId(authUserId)
                 .map(this::toUserResponse);
     }
 
@@ -67,6 +73,11 @@ public class UserService {
                     log.info("Updated user profile: id={}", updated.getId());
                     return toUserResponse(updated);
                 });
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<User> findUserEntity(String userId) {
+        return userRepository.findById(userId);
     }
 
     /**
@@ -137,6 +148,7 @@ public class UserService {
     private UserResponse toUserResponse(User user) {
         return new UserResponse(
                 user.getId(),
+                user.getAuthUserId(),
                 user.getEmail(),
                 user.getFirstName(),
                 user.getLastName(),

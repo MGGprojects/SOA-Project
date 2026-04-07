@@ -1,6 +1,7 @@
 package com.example.authservice.controller;
 
 import com.example.authservice.dto.ValidationResponse;
+import com.example.authservice.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -14,10 +15,15 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/users")
 @Tag(name = "User Validation", description = "Endpoints for validating users")
 public class UserController {
+    private final AuthService authService;
+
+    public UserController(AuthService authService) {
+        this.authService = authService;
+    }
 
     @Operation(
             summary = "Validate a user",
-            description = "Validates whether a user with the given ID exists and is valid"
+            description = "Temporary compatibility endpoint that checks whether a user exists in auth-service."
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -33,7 +39,6 @@ public class UserController {
     public ValidationResponse validateUser(
             @Parameter(description = "The ID of the user to validate", required = true, example = "1")
             @PathVariable Long id) {
-        boolean isValid = (id == 1); // Dummy
-        return new ValidationResponse(id, isValid);
+        return authService.validateUser(id);
     }
 }

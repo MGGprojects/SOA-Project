@@ -212,6 +212,10 @@ public class EventService {
 
         return eventRepository.findById(uuid)
                 .map(existing -> {
+                    if (!existing.getCreatorUserId().equals(userId)) {
+                        throw new IllegalStateException("User " + userId + " is not allowed to update this event");
+                    }
+
                     // Update fields if provided
                     if (request.getTitle() != null) existing.setTitle(request.getTitle());
                     if (request.getDescription() != null) existing.setDescription(request.getDescription());
@@ -258,6 +262,10 @@ public class EventService {
 
         return eventRepository.findById(uuid)
                 .map(event -> {
+                    if (!event.getCreatorUserId().equals(userId)) {
+                        throw new IllegalStateException("User " + userId + " is not allowed to delete this event");
+                    }
+
                     eventRepository.delete(event);
                     return new DeleteEventResponse("Event cancelled");
                 });
