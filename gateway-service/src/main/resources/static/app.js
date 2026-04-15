@@ -36,6 +36,9 @@ const detailMap = document.getElementById("detailMap");
 const conflictModal = document.getElementById("conflictModal");
 const confirmConflictBtn = document.getElementById("confirmConflictBtn");
 const cancelConflictBtn = document.getElementById("cancelConflictBtn");
+const notificationList = document.getElementById("notificationList");
+const notificationBadge = document.getElementById("notificationBadge");
+const refreshNotificationsButton = document.getElementById("refreshNotificationsButton");
 
 let pendingEventPayload = null;
 let selectedEventId = null;
@@ -52,6 +55,7 @@ document.addEventListener("DOMContentLoaded", () => {
     updateSessionUi();
     prefillDemoValues();
     loadEvents();
+    loadNotifications();
 });
 
 function wireAuthForms() {
@@ -405,6 +409,130 @@ async function loadExportLinks(eventId) {
     }
 }
 
+async function loadNotifications() {
+    notificationBadge.textContent = "Loading...";
+    notificationList.innerHTML = "";
+
+    try {
+        const response = await fetch("/api/notifications?page=1&limit=10");
+
+        if (!response.ok) {
+            const errorBody = await parseJson(response);
+            console.log("NOTIFICATIONS ERROR RESPONSE:", errorBody);
+
+            throw new Error(
+                errorBody?.error ||
+                errorBody?.message ||
+                `Notifications request failed with ${response.status}`
+            );
+        }
+
+        const payload = await response.json();
+        const notifications = payload.notifications || [];
+
+        await loadUnreadNotificationCount();
+
+        if (notifications.length === 0) {
+            notificationList.innerHTML = createInfoCard("No notifications available.");
+            return;
+        }
+
+        notificationList.innerHTML = "";
+
+        notifications.forEach((notification) => {
+            const card = document.createElement("article");
+            card.className = `detail-card notification-card ${notification.read ? "" : "notification-unread"}`;
+
+            card.innerHTML = `
+                <div class="event-card-top">
+                    <div>
+                        <h3>${escapeHtml(notification.type || "Notification")}</h3>
+                        <p>${escapeHtml(notification.message || "No message available.")}</p>
+                    </div>
+                    <span class="pill">${formatDate(notification.createdAt)}</span>
+                </div>
+                <div class="event-card-bottom">
+                    <div class="event-meta">
+                        <span><strong>Event:</strong> ${escapeHtml(notification.eventTitle || "Unknown")}</span>
+                        <span><strong>Venue:</strong> ${escapeHtml(notification.eventVenue || "Unknown")}</span>
+                    </div>
+                    ${
+                notification.read
+                    ? `<span>Read</span>`
+                    : `<button class="button button-tertiary mark-read-btn" type="button" data-id="${notification.id}">Mark as read</button>`
+            }
+                </div>
+            `;
+
+            notificationList.appendChild(card);
+        });
+
+        wireMarkAsReadButtons();
+
+    } catch (error) {
+        notificationBadge.textContent = "Unavailable";
+        notificationList.innerHTML = createInfoCard(
+            `Could not load notifications. ${escapeHtml(error.message)}`,
+            true
+        );
+    }
+}
+
+async function loadUnreadNotificationCount() {
+    try {
+        const response = await fetch("/api/notifications/unread/count");
+
+        if (!response.ok) {
+            throw new Error(`Unread count failed with ${response.status}`);
+        }
+
+        const payload = await response.json();
+        const count = payload.unreadCount ?? 0;
+
+        notificationBadge.textContent = `${count} unread`;
+        notificationBadge.className = `status-badge ${count > 0 ? "warning-badge" : "neutral-badge"}`;
+    } catch {
+        notificationBadge.textContent = "Count unavailable";
+        notificationBadge.className = "status-badge neutral-badge";
+    }
+}
+
+function wireMarkAsReadButtons() {
+    document.querySelectorAll(".mark-read-btn").forEach((button) => {
+        button.addEventListener("click", async () => {
+            const notificationId = button.dataset.id;
+
+            try {
+                const response = await fetch(`/api/notifications/${notificationId}/read`, {
+                    method: "PUT",
+                    headers: {
+                        "Content-Type": "application/json"
+                    }
+                });
+
+                const data = await parseJson(response);
+
+                if (!response.ok) {
+                    throw new Error(
+                        data?.error ||
+                        data?.message ||
+                        `Mark-as-read failed with ${response.status}`
+                    );
+                }
+
+                showToast("Notification updated", "Marked as read.", "success");
+                await loadNotifications();
+            } catch (error) {
+                showToast("Notification update failed", error.message, "error");
+            }
+        });
+    });
+}
+
+setInterval(() => {
+    loadNotifications();
+}, 15000);
+
 function loadSession() {
     try {
         const raw = localStorage.getItem("local-events-session");
@@ -614,3 +742,7 @@ function closeConflictModal() {
     conflictModal.classList.add("hidden");
     pendingEventPayload = null;
 }
+
+refreshNotificationsButton.addEventListener("click", () => {
+    loadNotifications();
+});
