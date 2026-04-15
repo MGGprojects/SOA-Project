@@ -11,4 +11,5 @@ public class CreateEventRequest {
     private String venue;
     private String city;
     private String businessId;
+    private Boolean forceCreation;
 }

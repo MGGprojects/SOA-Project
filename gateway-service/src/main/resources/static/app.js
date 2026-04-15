@@ -33,7 +33,11 @@ const businessContactEmail = document.getElementById("businessContactEmail");
 const eventBusinessId = document.getElementById("eventBusinessId");
 const toastContainer = document.getElementById("toastContainer");
 const detailMap = document.getElementById("detailMap");
+const conflictModal = document.getElementById("conflictModal");
+const confirmConflictBtn = document.getElementById("confirmConflictBtn");
+const cancelConflictBtn = document.getElementById("cancelConflictBtn");
 
+let pendingEventPayload = null;
 let selectedEventId = null;
 let session = loadSession();
 
@@ -44,6 +48,7 @@ refreshButton.addEventListener("click", () => {
 document.addEventListener("DOMContentLoaded", () => {
     wireAuthForms();
     wireProtectedForms();
+    wireConflictModal();
     updateSessionUi();
     prefillDemoValues();
     loadEvents();
@@ -206,14 +211,81 @@ function wireProtectedForms() {
             });
 
             const data = await parseJson(response);
+
             if (!response.ok) {
-                throw new Error(data?.error || data?.message || `Event creation failed with ${response.status}`);
+                console.log("BACKEND ERROR:", data);
+
+                const message =
+                    data?.error ||
+                    data?.message ||
+                    `Event creation failed with ${response.status}`;
+
+                throw new Error(message);
             }
 
             protectedStatus.textContent = `Event created: ${data.title}. Refreshing catalog...`;
             showToast("Event created", `${data.title} was created successfully.`, "success");
             await loadEvents();
+
         } catch (error) {
+            const message = error.message || "";
+
+            console.log("ERROR MESSAGE:", message);
+
+            if (message.toUpperCase().includes("CONFLICT")) {
+                openConflictModal(payload);
+                return;
+            }
+
+            protectedStatus.textContent = message;
+            showToast("Event creation failed", message, "error");
+        }
+    });
+}
+
+function wireConflictModal() {
+    cancelConflictBtn.addEventListener("click", () => {
+        closeConflictModal();
+        protectedStatus.textContent = "Event creation cancelled.";
+    });
+
+    confirmConflictBtn.addEventListener("click", async () => {
+        if (!pendingEventPayload) {
+            closeConflictModal();
+            return;
+        }
+
+        try {
+            protectedStatus.textContent = "Creating event despite conflict...";
+
+            const forcedPayload = {
+                ...pendingEventPayload,
+                forceCreation: true
+            };
+
+            const response = await fetch("/api/events", {
+                method: "POST",
+                headers: buildAuthHeaders(),
+                body: JSON.stringify(forcedPayload)
+            });
+
+            const data = await parseJson(response);
+
+            if (!response.ok) {
+                const message =
+                    data?.error ||
+                    data?.message ||
+                    `Event creation failed with ${response.status}`;
+
+                throw new Error(message);
+            }
+
+            closeConflictModal();
+            protectedStatus.textContent = `Event created: ${data.title}. Refreshing catalog...`;
+            showToast("Event created", `${data.title} was created successfully.`, "success");
+            await loadEvents();
+        } catch (error) {
+            closeConflictModal();
             protectedStatus.textContent = error.message;
             showToast("Event creation failed", error.message, "error");
         }
@@ -531,4 +603,14 @@ function escapeHtml(value) {
         .replaceAll(">", "&gt;")
         .replaceAll("\"", "&quot;")
         .replaceAll("'", "&#039;");
+}
+
+function openConflictModal(payload) {
+    pendingEventPayload = payload;
+    conflictModal.classList.remove("hidden");
+}
+
+function closeConflictModal() {
+    conflictModal.classList.add("hidden");
+    pendingEventPayload = null;
 }

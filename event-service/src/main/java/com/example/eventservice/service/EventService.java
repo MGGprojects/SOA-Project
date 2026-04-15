@@ -66,8 +66,16 @@ public class EventService {
 
         // 3. Check venue conflicts
         List<Event> conflicts = eventRepository.findOverlappingEvents(request.getVenue(), startTime, endTime);
-        if (!conflicts.isEmpty()) {
-            throw new IllegalStateException("Venue '" + request.getVenue() + "' has a scheduling conflict for the requested time range");
+
+        boolean hasConflicts = !conflicts.isEmpty();
+        boolean force = Boolean.TRUE.equals(request.getForceCreation());
+
+        if (hasConflicts && !force) {
+            throw new IllegalStateException(
+                    "CONFLICT: Venue '" + request.getVenue() +
+                            "' already has events in this time range. " +
+                            "Creating this event may lead to competitors."
+            );
         }
 
         // 4. Persist

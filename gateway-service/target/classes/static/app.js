@@ -32,11 +32,14 @@ const protectedStatus = document.getElementById("protectedStatus");
 const businessContactEmail = document.getElementById("businessContactEmail");
 const eventBusinessId = document.getElementById("eventBusinessId");
 const toastContainer = document.getElementById("toastContainer");
+const detailMap = document.getElementById("detailMap");
+const conflictModal = document.getElementById("conflictModal");
+const confirmConflictBtn = document.getElementById("confirmConflictBtn");
+const cancelConflictBtn = document.getElementById("cancelConflictBtn");
 
+let pendingEventPayload = null;
 let selectedEventId = null;
 let session = loadSession();
-
-console.log("APP_JS_VERSION_777777");
 
 refreshButton.addEventListener("click", () => {
     loadEvents();
@@ -45,6 +48,7 @@ refreshButton.addEventListener("click", () => {
 document.addEventListener("DOMContentLoaded", () => {
     wireAuthForms();
     wireProtectedForms();
+    wireConflictModal();
     updateSessionUi();
     prefillDemoValues();
     loadEvents();
@@ -207,14 +211,81 @@ function wireProtectedForms() {
             });
 
             const data = await parseJson(response);
+
             if (!response.ok) {
-                throw new Error(data?.error || data?.message || `Event creation failed with ${response.status}`);
+                console.log("BACKEND ERROR:", data);
+
+                const message =
+                    data?.error ||
+                    data?.message ||
+                    `Event creation failed with ${response.status}`;
+
+                throw new Error(message);
             }
 
             protectedStatus.textContent = `Event created: ${data.title}. Refreshing catalog...`;
             showToast("Event created", `${data.title} was created successfully.`, "success");
             await loadEvents();
+
         } catch (error) {
+            const message = error.message || "";
+
+            console.log("ERROR MESSAGE:", message);
+
+            if (message.toUpperCase().includes("CONFLICT")) {
+                openConflictModal(payload);
+                return;
+            }
+
+            protectedStatus.textContent = message;
+            showToast("Event creation failed", message, "error");
+        }
+    });
+}
+
+function wireConflictModal() {
+    cancelConflictBtn.addEventListener("click", () => {
+        closeConflictModal();
+        protectedStatus.textContent = "Event creation cancelled.";
+    });
+
+    confirmConflictBtn.addEventListener("click", async () => {
+        if (!pendingEventPayload) {
+            closeConflictModal();
+            return;
+        }
+
+        try {
+            protectedStatus.textContent = "Creating event despite conflict...";
+
+            const forcedPayload = {
+                ...pendingEventPayload,
+                forceCreation: true
+            };
+
+            const response = await fetch("/api/events", {
+                method: "POST",
+                headers: buildAuthHeaders(),
+                body: JSON.stringify(forcedPayload)
+            });
+
+            const data = await parseJson(response);
+
+            if (!response.ok) {
+                const message =
+                    data?.error ||
+                    data?.message ||
+                    `Event creation failed with ${response.status}`;
+
+                throw new Error(message);
+            }
+
+            closeConflictModal();
+            protectedStatus.textContent = `Event created: ${data.title}. Refreshing catalog...`;
+            showToast("Event created", `${data.title} was created successfully.`, "success");
+            await loadEvents();
+        } catch (error) {
+            closeConflictModal();
             protectedStatus.textContent = error.message;
             showToast("Event creation failed", error.message, "error");
         }
@@ -309,6 +380,7 @@ async function loadEventDetail(eventId) {
         detailVenue.textContent = "-";
         detailId.textContent = eventId;
         detailDescription.textContent = error.message;
+        detailMap.src = "";
     }
 }
 
@@ -421,6 +493,14 @@ async function parseJson(response) {
     }
 }
 
+function buildGoogleMapsEmbedUrl(venue, city) {
+    const query = [venue, city, "Netherlands"]
+        .filter(Boolean)
+        .join(", ");
+
+    return `https://maps.google.com/maps?q=${encodeURIComponent(query)}&z=15&output=embed`;
+}
+
 function toUtcIsoString(value) {
     return new Date(value).toISOString();
 }
@@ -440,12 +520,11 @@ function showToast(title, message, tone = "success") {
     }, 5000);
 }
 
-let map = null;
-
 function renderDetail(event) {
     detailBusiness.textContent = event.business?.name
         ? `Hosted by ${event.business.name}`
         : `Business ID ${event.businessId || "not available"}`;
+
     detailTitle.textContent = event.title || "Untitled event";
     detailDate.textContent = formatDate(event.startTime);
     detailTime.textContent = `${formatTime(event.startTime)} - ${formatTime(event.endTime)}`;
@@ -453,41 +532,7 @@ function renderDetail(event) {
     detailId.textContent = event.eventId || selectedEventId || "-";
     detailDescription.textContent = event.description || "No description available.";
 
-    const locationParts = [
-        event.venue,
-        event.city,
-        "Netherlands"
-    ].filter(Boolean);
-
-    const address = locationParts.join(", ");
-
-    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`)
-        .then(res => res.json())
-        .then(data => {
-            if (!data.length) {
-                console.warn("Location not found");
-                return;
-            }
-
-            const lat = parseFloat(data[0].lat);
-            const lon = parseFloat(data[0].lon);
-
-            if (map) {
-                map.remove();
-            }
-
-            map = L.map('map').setView([lat, lon], 16);
-
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; OpenStreetMap contributors'
-            }).addTo(map);
-
-            L.marker([lat, lon])
-                .addTo(map)
-                .bindPopup(address)
-                .openPopup();
-        })
-        .catch(err => console.error("Map error:", err));
+    detailMap.src = buildGoogleMapsEmbedUrl(event.venue, event.city);
 }
 
 function showDetailShell() {
@@ -501,6 +546,7 @@ function clearDetail() {
     eventDetail.classList.add("hidden");
     clearExportLinks();
     exportStatus.textContent = "Ready";
+    detailMap.src = "";
 }
 
 function clearExportLinks() {
@@ -557,4 +603,14 @@ function escapeHtml(value) {
         .replaceAll(">", "&gt;")
         .replaceAll("\"", "&quot;")
         .replaceAll("'", "&#039;");
+}
+
+function openConflictModal(payload) {
+    pendingEventPayload = payload;
+    conflictModal.classList.remove("hidden");
+}
+
+function closeConflictModal() {
+    conflictModal.classList.add("hidden");
+    pendingEventPayload = null;
 }

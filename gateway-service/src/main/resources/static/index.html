@@ -271,6 +271,25 @@
     </main>
 </div>
 
+
+<div id="conflictModal" class="modal hidden">
+    <div class="modal-content">
+        <h3>⚠️ Scheduling conflict</h3>
+        <p>
+            There are already events scheduled at this venue during the selected time.
+            Creating this event may lead to competitors.
+        </p>
+
+        <div class="modal-actions">
+            <button id="cancelConflictBtn" class="button button-tertiary" type="button">
+                Cancel
+            </button>
+            <button id="confirmConflictBtn" class="button button-primary" type="button">
+                Create anyway
+            </button>
+        </div>
+    </div>
+</div>
 <script src="/app.js"></script>
 </body>
 </html>
