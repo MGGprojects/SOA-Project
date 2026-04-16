@@ -1,19 +1,18 @@
 # Local Kubernetes Setup
 
-This folder contains a simple local Kubernetes setup for the project.
+One-command deploy to a local minikube cluster.
 
-## What is included
+## Files
 
-- `local-stack.yaml` — all Kubernetes manifests (namespace, secrets, databases, services)
-- `build-local-images.ps1` — builds all Docker images and loads them into minikube
-- `apply-local.ps1` — applies all manifests to the cluster
-- `delete-local.ps1` — tears down everything
+| File | Purpose |
+|------|---------|
+| `local-stack.yaml` | All Kubernetes manifests (namespace, secrets, databases, services) |
+| `deploy.ps1` | **Main script** — starts minikube, builds images, deploys, waits for readiness |
+| `teardown.ps1` | Tears down all resources (optionally deletes minikube) |
 
 ---
 
 ## Prerequisites
-
-Make sure you have the following installed and running before you start:
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) — must be **running**
 - [minikube](https://minikube.sigs.k8s.io/docs/start/)
@@ -21,67 +20,28 @@ Make sure you have the following installed and running before you start:
 
 ---
 
-## First-time setup (and after every rebuild)
-
-Run these three steps **in order** from the project root:
-
-### Step 1 — Start minikube
+## Deploy (one command)
 
 ```powershell
-minikube start --driver=docker --memory=6100 --cpus=2
+.\k8s\deploy.ps1
 ```
 
-> If minikube was already running but broken (e.g. apiserver stopped), delete it first:
-> ```powershell
-> minikube delete
-> minikube start --driver=docker --memory=6100 --cpus=2
-> ```
+This script will:
+1. Start minikube (if not already running)
+2. Point Docker at minikube's internal daemon
+3. Build all 7 service images directly inside minikube
+4. Apply all Kubernetes manifests
+5. Wait for every pod to become ready
+6. Open the gateway URL in your browser
 
-### Step 2 — Build images and load them into minikube
-
-```powershell
-.\k8s\build-local-images.ps1
-```
-
-> **Important:** This step both builds the Docker images AND loads them into minikube's
-> internal registry. You must run this script (not plain `docker build`) because minikube
-> uses its own isolated Docker daemon — images built with plain `docker build` are invisible
-> to minikube and will cause `ImagePullBackOff` errors.
-
-### Step 3 — Deploy to Kubernetes
-
-```powershell
-.\k8s\apply-local.ps1
-```
+> **First run takes 10–15 minutes** — Maven downloads dependencies and Spring Boot
+> starts slowly on limited resources. Subsequent runs are faster (Maven cache is warm).
 
 ---
 
-## Accessing the gateway
+## Accessing the application
 
-The services take a few minutes to start (Spring Boot startup on limited resources can take
-**5–10 minutes** for all pods). Wait until the gateway pod is ready before trying to connect.
-
-### Check pod status
-
-```powershell
-kubectl get pods -n soa-local
-```
-
-Wait until all pods show `1/1 Running`. Example of a healthy cluster:
-
-```
-NAME                                       READY   STATUS    RESTARTS   AGE
-auth-db-...                                1/1     Running   0          5m
-auth-service-...                           1/1     Running   0          5m
-business-db-...                            1/1     Running   0          5m
-business-service-...                       1/1     Running   0          5m
-...
-gateway-service-...                        1/1     Running   0          5m
-```
-
-### Forward the gateway port
-
-Once all pods are `Running`, open a terminal and run (keep it open):
+### Option A — port-forward (recommended, always works)
 
 ```powershell
 kubectl port-forward -n soa-local service/gateway-service 8080:8080
@@ -89,78 +49,108 @@ kubectl port-forward -n soa-local service/gateway-service 8080:8080
 
 Then open: **http://localhost:8080**
 
-> If you get `error: unable to forward port because pod is not running`, the pod is still
-> starting up. Wait a minute and try again.
->
-> If you get `Connection refused`, the Spring Boot app inside the pod is still initializing.
-> Check the logs with:
-> ```powershell
-> kubectl logs -n soa-local -l app=gateway-service --tail=20
-> ```
-> Wait until you see `Started GatewayServiceApplication in ... seconds`, then retry the
-> port-forward.
+Keep the terminal open while you use the app.
+
+### Option B — NodePort (may not work on all machines with docker driver)
+
+```powershell
+kubectl get node minikube -o jsonpath='{.status.addresses[0].address}'
+# → e.g. 192.168.49.2
+```
+
+Then open: `http://<node-ip>:30080`
+
+---
+
+## Check pod status
+
+```powershell
+kubectl get pods -n soa-local
+```
+
+All pods should show `1/1 Running`. Example healthy output:
+
+```
+NAME                                       READY   STATUS    RESTARTS   AGE
+auth-db-...                                1/1     Running   0          5m
+auth-service-...                           1/1     Running   0          5m
+business-db-...                            1/1     Running   0          5m
+business-service-...                       1/1     Running   0          5m
+calendar-export-service-...                1/1     Running   0          5m
+event-db-...                               1/1     Running   0          5m
+event-service-...                          1/1     Running   0          5m
+gateway-service-...                        1/1     Running   0          5m
+notification-db-...                        1/1     Running   0          5m
+notification-service-...                   1/1     Running   0          5m
+rabbitmq-...                               1/1     Running   0          5m
+user-db-...                                1/1     Running   0          5m
+user-service-...                           1/1     Running   0          5m
+```
 
 ---
 
 ## Tear down
 
-To delete all deployed resources:
-
 ```powershell
-.\k8s\delete-local.ps1
+# Remove all Kubernetes resources (keep minikube running)
+.\k8s\teardown.ps1
+
+# Remove all resources AND delete the minikube cluster
+.\k8s\teardown.ps1 -DeleteMinikube
 ```
 
-To also stop minikube:
+---
+
+## Rebuild a single service
+
+If you change code in one service and want to redeploy just that service:
 
 ```powershell
-minikube stop
-```
+# 1. Point Docker at minikube's daemon
+& minikube -p minikube docker-env --shell powershell | Invoke-Expression
 
-To completely wipe minikube (use this if minikube is broken):
+# 2. Rebuild the image (example: auth-service)
+docker build -t soa/auth-service:local .\auth-service\
 
-```powershell
-minikube delete
+# 3. Restart the deployment to pick up the new image
+kubectl rollout restart deployment/auth-service -n soa-local
 ```
 
 ---
 
 ## Troubleshooting
 
+### Pods stuck in `0/1 Running` (readiness probe failing)
+
+Spring Boot services take **5–8 minutes** to start on first run. Check if the service
+has actually started:
+
+```powershell
+kubectl logs -n soa-local -l app=auth-service --tail=5
+```
+
+Look for `Started AuthServiceApplication in ... seconds`. If you see it, the pod will
+become ready on the next probe check (every 15 seconds).
+
 ### `ImagePullBackOff` or `ErrImagePull`
 
-The images were not loaded into minikube. Run:
+Images were not built inside minikube's Docker daemon. Run the full deploy script:
 
 ```powershell
-.\k8s\build-local-images.ps1
-```
-
-Then restart the affected deployments:
-
-```powershell
-kubectl rollout restart deployment -n soa-local
-```
-
-### `apiserver: Stopped` / minikube won't start
-
-Delete and recreate the cluster:
-
-```powershell
-minikube delete
-minikube start --driver=docker --memory=6100 --cpus=2
+.\k8s\deploy.ps1
 ```
 
 ### Pods stuck in `Pending`
 
-Usually means minikube is out of resources. Check:
+Minikube is out of resources. Delete and recreate with more memory:
 
 ```powershell
-kubectl describe pod -n soa-local <pod-name>
+minikube delete
+minikube start --driver=docker --memory=6144 --cpus=4
+.\k8s\deploy.ps1 -SkipMinikube
 ```
 
-Look for `Insufficient memory` or `Insufficient cpu` in the Events section. If so, delete
-and recreate minikube with more resources, or reduce the number of replicas.
-
-### Pods keep restarting (`CrashLoopBackOff`)
+### `CrashLoopBackOff`
 
 Check the logs:
 
@@ -169,10 +159,9 @@ kubectl logs -n soa-local <pod-name>
 kubectl logs -n soa-local <pod-name> --previous
 ```
 
-### Check logs for any service
+### minikube won't start / broken cluster
 
 ```powershell
-kubectl logs -n soa-local -l app=gateway-service --tail=50
-kubectl logs -n soa-local -l app=auth-service --tail=50
-# etc.
+minikube delete
+.\k8s\deploy.ps1
 ```
