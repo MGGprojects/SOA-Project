@@ -61,6 +61,21 @@ export function createEvent(payload, session) {
     });
 }
 
+export function updateEvent(eventId, payload, session) {
+    return request(`/api/events/${eventId}`, {
+        method: "PUT",
+        headers: buildAuthHeaders(session),
+        body: JSON.stringify(payload)
+    });
+}
+
+export function deleteEvent(eventId, session) {
+    return request(`/api/events/${eventId}`, {
+        method: "DELETE",
+        headers: buildAuthHeaders(session)
+    });
+}
+
 export function createUserProfile(payload, session) {
     return request("/api/users", {
         method: "POST",
@@ -89,8 +104,29 @@ export function getFavoriteIds(profileUserId, session) {
     });
 }
 
+export function getUserProfile(profileUserId, session) {
+    return request(`/api/users/${profileUserId}`, {
+        headers: buildAuthHeaders(session)
+    });
+}
+
+export function updateUserProfile(profileUserId, payload, session) {
+    return request(`/api/users/${profileUserId}`, {
+        method: "PUT",
+        headers: buildAuthHeaders(session),
+        body: JSON.stringify(payload)
+    });
+}
+
 export function getEvent(eventId) {
     return request(`/api/events/${eventId}`);
+}
+
+export function getVenueAvailability(venue, date) {
+    const params = new URLSearchParams();
+    if (date) params.set("date", date);
+    const suffix = params.toString() ? `?${params.toString()}` : "";
+    return request(`/api/events/venues/${encodeURIComponent(venue)}/availability${suffix}`);
 }
 
 export function getExportLinks(eventId) {

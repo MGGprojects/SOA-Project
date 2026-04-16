@@ -28,6 +28,8 @@ export const elements = {
     businessForm: document.getElementById("businessForm"),
     eventForm: document.getElementById("eventForm"),
     profileForm: document.getElementById("profileForm"),
+    profileUpdateForm: document.getElementById("profileUpdateForm"),
+    loadProfileButton: document.getElementById("loadProfileButton"),
     profileStatus: document.getElementById("profileStatus"),
     profileSummary: document.getElementById("profileSummary"),
     profileUserId: document.getElementById("profileUserId"),
@@ -36,6 +38,9 @@ export const elements = {
     businessContactEmail: document.getElementById("businessContactEmail"),
     eventBusinessId: document.getElementById("eventBusinessId"),
     competitionStatus: document.getElementById("competitionStatus"),
+    availabilityForm: document.getElementById("availabilityForm"),
+    availabilityStatus: document.getElementById("availabilityStatus"),
+    availabilityList: document.getElementById("availabilityList"),
     toastContainer: document.getElementById("toastContainer"),
     detailMap: document.getElementById("detailMap"),
     filterForm: document.getElementById("filterForm"),
@@ -48,6 +53,9 @@ export const elements = {
     favoriteBadge: document.getElementById("favoriteBadge"),
     favoritesCount: document.getElementById("favoritesCount"),
     favoritesList: document.getElementById("favoritesList"),
+    manageEventBadge: document.getElementById("manageEventBadge"),
+    eventUpdateForm: document.getElementById("eventUpdateForm"),
+    manageEventStatus: document.getElementById("manageEventStatus"),
     registerTabButton: document.getElementById("registerTabButton"),
     loginTabButton: document.getElementById("loginTabButton"),
     registerPane: document.getElementById("registerPane"),
@@ -55,7 +63,18 @@ export const elements = {
     customerTabButton: document.getElementById("customerTabButton"),
     businessTabButton: document.getElementById("businessTabButton"),
     customerPane: document.getElementById("customerPane"),
-    businessPane: document.getElementById("businessPane")
+    businessPane: document.getElementById("businessPane"),
+    profileUpdateFirstName: document.getElementById("profileUpdateFirstName"),
+    profileUpdateLastName: document.getElementById("profileUpdateLastName"),
+    availabilityVenueInput: document.getElementById("availabilityVenueInput"),
+    availabilityDateInput: document.getElementById("availabilityDateInput"),
+    updateEventTitleInput: document.getElementById("updateEventTitleInput"),
+    updateEventDescriptionInput: document.getElementById("updateEventDescriptionInput"),
+    updateEventStartInput: document.getElementById("updateEventStartInput"),
+    updateEventEndInput: document.getElementById("updateEventEndInput"),
+    updateEventVenueInput: document.getElementById("updateEventVenueInput"),
+    updateEventButton: document.getElementById("updateEventButton"),
+    deleteEventButton: document.getElementById("deleteEventButton")
 };
 
 export function showToast(title, message, tone = "success") {
@@ -78,6 +97,7 @@ export function updateSessionUi(session) {
         elements.sessionRole.textContent = "-";
         elements.protectedStatus.textContent = "Login as BUSINESS to unlock protected actions.";
         elements.favoriteBadge.textContent = "Login to use favorites";
+        elements.manageEventBadge.textContent = "Login as BUSINESS to manage events";
         return;
     }
 
@@ -89,6 +109,9 @@ export function updateSessionUi(session) {
     elements.protectedStatus.textContent = session.role === "BUSINESS"
         ? "You can now create businesses and events through the gateway."
         : "This session is valid. Create a user profile to save favorites.";
+    elements.manageEventBadge.textContent = session.role === "BUSINESS"
+        ? "Business session ready for event management"
+        : "Only BUSINESS sessions can update or delete events";
 }
 
 export function updateProfileUi(profile) {
@@ -96,6 +119,8 @@ export function updateProfileUi(profile) {
         elements.profileSummary.classList.add("hidden");
         elements.profileStatus.textContent = "Login to create a customer profile and use favorites.";
         elements.favoriteBadge.textContent = "Profile needed";
+        elements.profileUpdateFirstName.value = "";
+        elements.profileUpdateLastName.value = "";
         return;
     }
 
@@ -104,6 +129,8 @@ export function updateProfileUi(profile) {
     elements.profileName.textContent = `${profile.firstName} ${profile.lastName}`;
     elements.profileStatus.textContent = "Profile ready. You can now save favorite events.";
     elements.favoriteBadge.textContent = "Favorites enabled";
+    elements.profileUpdateFirstName.value = profile.firstName ?? "";
+    elements.profileUpdateLastName.value = profile.lastName ?? "";
 }
 
 export function showFlowTab(tabName) {
@@ -182,6 +209,12 @@ export function renderDetail(event, isFavorite) {
     elements.detailDescription.textContent = event.description || "No description available.";
     elements.detailMap.src = buildGoogleMapsEmbedUrl(event.venue, event.city);
     elements.favoriteButton.textContent = isFavorite ? "Remove from favorites" : "Add to favorites";
+    elements.updateEventTitleInput.value = event.title || "";
+    elements.updateEventDescriptionInput.value = event.description || "";
+    elements.updateEventStartInput.value = toLocalDateTimeValue(event.startTime);
+    elements.updateEventEndInput.value = toLocalDateTimeValue(event.endTime);
+    elements.updateEventVenueInput.value = event.venue || "";
+    elements.manageEventStatus.textContent = `Loaded event ${event.eventId} for management.`;
 }
 
 export function renderFavoriteEvents(events, onSelect) {
@@ -215,6 +248,34 @@ export function clearDetail() {
     elements.exportStatus.textContent = "Ready";
     elements.detailMap.src = "";
     elements.favoriteButton.textContent = "Add to favorites";
+    elements.eventUpdateForm.reset();
+    elements.manageEventStatus.textContent = "Select an event to prepare update or delete actions.";
+}
+
+export function renderAvailability(response) {
+    const slots = response?.availableSlots || [];
+
+    if (!slots.length) {
+        elements.availabilityList.innerHTML = createInfoCard("No free slots were returned for this venue/date.");
+        return;
+    }
+
+    elements.availabilityList.innerHTML = slots.map((slot) => `
+        <article class="availability-item">
+            <strong>${formatTime(slot.start)}</strong>
+            <span>to ${formatTime(slot.end)}</span>
+        </article>
+    `).join("");
+}
+
+function toLocalDateTimeValue(value) {
+    if (!value) {
+        return "";
+    }
+
+    const date = new Date(value);
+    const pad = (part) => String(part).padStart(2, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 export function showDetailShell() {

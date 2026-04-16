@@ -3,13 +3,18 @@ import {
     createBusiness,
     createEvent,
     createUserProfile,
+    deleteEvent,
     getEvent,
     getEvents,
     getExportLinks,
     getFavoriteIds,
+    getUserProfile,
+    getVenueAvailability,
     loginAuth,
     registerAuth,
-    removeFavorite
+    removeFavorite,
+    updateEvent,
+    updateUserProfile
 } from "./api.js";
 import { clearSession, getStoredProfile, loadSession, saveSession, saveStoredProfile } from "./storage.js";
 import {
@@ -18,6 +23,7 @@ import {
     createInfoCard,
     elements,
     renderDetail,
+    renderAvailability,
     renderEventList,
     renderFavoriteEvents,
     setExportLinks,
@@ -43,6 +49,7 @@ document.addEventListener("DOMContentLoaded", () => {
     wireAuthForms();
     wireProfileForm();
     wireProtectedForms();
+    wireAvailabilityForm();
     wireFilters();
     wireFavoriteButton();
     wireAuthTabs();
@@ -106,6 +113,9 @@ function wireAuthForms() {
             };
             saveSession(state.session);
             hydrateProfile();
+            if (state.profile?.userId) {
+                await reloadProfile();
+            }
             updateSessionUi(state.session);
             updateProfileUi(state.profile);
             elements.authStatus.textContent = `Logged in as ${payload.email}.`;
@@ -160,6 +170,36 @@ function wireProfileForm() {
             elements.profileStatus.textContent = error.message;
             showToast("Profile creation failed", error.message, "error");
         }
+    });
+
+    elements.profileUpdateForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        if (!state.session?.token || !state.profile?.userId) {
+            elements.profileStatus.textContent = "Create or load a profile first.";
+            return;
+        }
+
+        const payload = {
+            firstName: elements.profileUpdateFirstName.value.trim(),
+            lastName: elements.profileUpdateLastName.value.trim()
+        };
+
+        try {
+            const profile = await updateUserProfile(state.profile.userId, payload, state.session);
+            state.profile = profile;
+            saveStoredProfile(state.session.userId, profile);
+            updateProfileUi(profile);
+            elements.profileStatus.textContent = "Profile updated successfully.";
+            showToast("Profile updated", "Your profile changes were saved.", "success");
+        } catch (error) {
+            elements.profileStatus.textContent = error.message;
+            showToast("Profile update failed", error.message, "error");
+        }
+    });
+
+    elements.loadProfileButton.addEventListener("click", async () => {
+        await reloadProfile(true);
     });
 }
 
@@ -236,6 +276,88 @@ function wireProtectedForms() {
         } catch (error) {
             elements.protectedStatus.textContent = error.message;
             showToast("Event creation failed", error.message, "error");
+        }
+    });
+
+    elements.eventUpdateForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        if (!ensureBusinessSession() || !state.selectedEventId) {
+            elements.manageEventStatus.textContent = "Select an event and log in as BUSINESS first.";
+            return;
+        }
+
+        const payload = {
+            title: elements.updateEventTitleInput.value.trim(),
+            description: elements.updateEventDescriptionInput.value.trim(),
+            startTime: elements.updateEventStartInput.value ? toUtcIsoString(elements.updateEventStartInput.value) : null,
+            endTime: elements.updateEventEndInput.value ? toUtcIsoString(elements.updateEventEndInput.value) : null,
+            venue: elements.updateEventVenueInput.value.trim()
+        };
+
+        Object.keys(payload).forEach((key) => {
+            if (payload[key] === "" || payload[key] === null) {
+                delete payload[key];
+            }
+        });
+
+        try {
+            elements.manageEventStatus.textContent = "Updating event...";
+            const updated = await updateEvent(state.selectedEventId, payload, state.session);
+            elements.manageEventStatus.textContent = `Event updated: ${updated.title}.`;
+            showToast("Event updated", "Selected event was updated successfully.", "success");
+            await loadEvents();
+            await selectEventById(state.selectedEventId);
+        } catch (error) {
+            elements.manageEventStatus.textContent = error.message;
+            showToast("Event update failed", error.message, "error");
+        }
+    });
+
+    elements.deleteEventButton.addEventListener("click", async () => {
+        if (!ensureBusinessSession() || !state.selectedEventId) {
+            elements.manageEventStatus.textContent = "Select an event and log in as BUSINESS first.";
+            return;
+        }
+
+        const shouldDelete = window.confirm("Delete the selected event? This action cannot be undone.");
+        if (!shouldDelete) {
+            return;
+        }
+
+        try {
+            elements.manageEventStatus.textContent = "Deleting event...";
+            await deleteEvent(state.selectedEventId, state.session);
+            showToast("Event deleted", "Selected event was deleted successfully.", "success");
+            state.selectedEventId = null;
+            await loadEvents();
+        } catch (error) {
+            elements.manageEventStatus.textContent = error.message;
+            showToast("Event deletion failed", error.message, "error");
+        }
+    });
+}
+
+function wireAvailabilityForm() {
+    elements.availabilityForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        const venue = elements.availabilityVenueInput.value.trim();
+        const date = elements.availabilityDateInput.value;
+
+        if (!venue) {
+            elements.availabilityStatus.textContent = "Please provide a venue name.";
+            return;
+        }
+
+        try {
+            elements.availabilityStatus.textContent = "Checking venue availability...";
+            const response = await getVenueAvailability(venue, date);
+            renderAvailability(response);
+            elements.availabilityStatus.textContent = `Availability loaded for ${response.venue || venue}.`;
+        } catch (error) {
+            elements.availabilityStatus.textContent = error.message;
+            elements.availabilityList.innerHTML = createInfoCard(`Could not load venue availability. ${error.message}`, true);
         }
     });
 }
@@ -390,6 +512,28 @@ async function refreshFavoriteState() {
         renderFavoriteEvents(state.favoriteEvents, selectEventById);
     } catch (error) {
         elements.favoritesList.innerHTML = createInfoCard(`Could not load favorites. ${error.message}`, true);
+    }
+}
+
+async function reloadProfile(showFeedback = false) {
+    if (!state.session?.token || !state.profile?.userId) {
+        return;
+    }
+
+    try {
+        const profile = await getUserProfile(state.profile.userId, state.session);
+        state.profile = profile;
+        saveStoredProfile(state.session.userId, profile);
+        updateProfileUi(profile);
+        if (showFeedback) {
+            elements.profileStatus.textContent = "Profile reloaded from user-service.";
+            showToast("Profile loaded", "Latest profile data was fetched successfully.", "success");
+        }
+    } catch (error) {
+        if (showFeedback) {
+            elements.profileStatus.textContent = error.message;
+            showToast("Profile load failed", error.message, "error");
+        }
     }
 }
 

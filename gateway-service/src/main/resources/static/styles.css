@@ -453,6 +453,23 @@ h1 {
     margin-top: 16px;
 }
 
+.availability-list {
+    display: grid;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.availability-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 14px;
+    border-radius: 18px;
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, 0.84);
+}
+
 .favorite-item {
     display: flex;
     justify-content: space-between;
@@ -513,6 +530,16 @@ h1 {
 .button-tertiary {
     background: rgba(29, 42, 56, 0.08);
     color: var(--ink);
+}
+
+.danger-button {
+    background: rgba(186, 26, 26, 0.1);
+    color: #8f1d1d;
+}
+
+.danger-button:hover,
+.danger-button:focus-visible {
+    background: rgba(186, 26, 26, 0.18);
 }
 
 .hidden {
