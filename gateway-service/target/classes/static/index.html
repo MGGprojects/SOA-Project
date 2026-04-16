@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="/styles.css?v=20260416b">
 </head>
 <body>
 <div id="toastContainer" class="toast-container" aria-live="polite"></div>
@@ -18,7 +18,7 @@
             <h1>Discover local events and export them to your calendar.</h1>
             <p class="hero-text">
                 This frontend talks only to the API gateway. The gateway routes requests to the existing
-                microservices for events, calendar exports, authentication, and protected business actions.
+                microservices for events, calendar exports, authentication, user favorites, and protected business actions.
             </p>
             <div class="hero-actions">
                 <button id="refreshButton" class="button button-primary" type="button">Refresh Events</button>
@@ -30,8 +30,8 @@
             <ol class="hero-card-list">
                 <li>Frontend requests data from the gateway.</li>
                 <li>Gateway routes `/api/auth` to `auth-service` for login and JWT validation.</li>
-                <li>Gateway routes `/api/events` and `/api/businesses` to protected backend services.</li>
-                <li>User can browse public data or log in to perform protected actions.</li>
+                <li>Gateway routes `/api/events`, `/api/businesses`, and `/api/users` to backend services.</li>
+                <li>User can browse public data, save favorites, or log in to perform protected actions.</li>
             </ol>
         </section>
     </header>
@@ -46,8 +46,13 @@
                 <p id="sessionBadge" class="status-badge neutral-badge">Guest mode</p>
             </div>
 
-            <div class="auth-layout">
-                <article class="detail-card">
+            <div class="tab-strip">
+                <button id="registerTabButton" class="tab-button active-tab" type="button">Register</button>
+                <button id="loginTabButton" class="tab-button" type="button">Login</button>
+            </div>
+
+            <div id="registerPane" class="tab-pane">
+                <article class="detail-card compact-card">
                     <h3>Create auth account</h3>
                     <p class="form-help">Register a CUSTOMER or BUSINESS identity through the gateway.</p>
                     <form id="registerForm" class="form-stack">
@@ -69,8 +74,10 @@
                         <button class="button button-primary" type="submit">Register</button>
                     </form>
                 </article>
+            </div>
 
-                <article class="detail-card">
+            <div id="loginPane" class="tab-pane hidden">
+                <article class="detail-card compact-card">
                     <h3>Login</h3>
                     <p class="form-help">A successful login stores the JWT in the browser so protected requests can use it.</p>
                     <form id="loginForm" class="form-stack">
@@ -87,12 +94,13 @@
                             <button id="logoutButton" class="button button-tertiary" type="button">Logout</button>
                         </div>
                     </form>
-                    <div id="sessionSummary" class="session-summary">
-                        <p><strong>User ID:</strong> <span id="sessionUserId">-</span></p>
-                        <p><strong>Email:</strong> <span id="sessionEmail">-</span></p>
-                        <p><strong>Role:</strong> <span id="sessionRole">-</span></p>
-                    </div>
                 </article>
+            </div>
+
+            <div id="sessionSummary" class="session-summary">
+                <p><strong>User ID:</strong> <span id="sessionUserId">-</span></p>
+                <p><strong>Email:</strong> <span id="sessionEmail">-</span></p>
+                <p><strong>Role:</strong> <span id="sessionRole">-</span></p>
             </div>
 
             <div id="authStatus" class="inline-status" aria-live="polite">Ready.</div>
@@ -101,84 +109,185 @@
         <section class="panel panel-side">
             <div class="panel-header">
                 <div>
-                    <p class="panel-kicker">Protected Actions</p>
-                    <h2>Business flow</h2>
+                    <p class="panel-kicker">Profiles and Actions</p>
+                    <h2>Customer and business flows</h2>
+                </div>
+            </div>
+            <div class="tab-strip">
+                <button id="customerTabButton" class="tab-button active-tab" type="button">Customer</button>
+                <button id="businessTabButton" class="tab-button" type="button">Business</button>
+            </div>
+
+            <div id="customerPane" class="tab-pane">
+                <div class="detail-card compact-card">
+                    <div class="panel-header compact-panel-header">
+                        <div>
+                            <p class="panel-kicker">Customer tools</p>
+                            <h3>Favorites and profile</h3>
+                        </div>
+                    </div>
+                    <div class="mini-banner">
+                        <span class="mini-banner-pill">Customer</span>
+                        <p>Create a user profile first if you want to save favorite events from the catalog.</p>
+                    </div>
+
+                    <details class="flow-block" open>
+                        <summary>Create user profile</summary>
+                        <form id="profileForm" class="form-stack flow-content">
+                            <label class="field">
+                                <span>First name</span>
+                                <input id="profileFirstName" type="text" required placeholder="John">
+                            </label>
+                            <label class="field">
+                                <span>Last name</span>
+                                <input id="profileLastName" type="text" required placeholder="Doe">
+                            </label>
+                            <button class="button button-secondary" type="submit">Create Profile</button>
+                        </form>
+                    </details>
+
+                    <details class="flow-block">
+                        <summary>Update user profile</summary>
+                        <form id="profileUpdateForm" class="form-stack flow-content">
+                            <label class="field">
+                                <span>First name</span>
+                                <input id="profileUpdateFirstName" type="text" placeholder="Jane">
+                            </label>
+                            <label class="field">
+                                <span>Last name</span>
+                                <input id="profileUpdateLastName" type="text" placeholder="Doe">
+                            </label>
+                            <div class="inline-actions">
+                                <button class="button button-secondary" type="submit">Update Profile</button>
+                                <button id="loadProfileButton" class="button button-tertiary" type="button">Reload Profile</button>
+                            </div>
+                        </form>
+                    </details>
+
+                    <div id="profileSummary" class="session-summary hidden">
+                        <p><strong>Profile ID:</strong> <span id="profileUserId">-</span></p>
+                        <p><strong>Name:</strong> <span id="profileName">-</span></p>
+                    </div>
+
+                    <div id="profileStatus" class="inline-status" aria-live="polite">Login to create a customer profile and use favorites.</div>
+
+                    <div class="detail-section compact-section">
+                        <div class="exports-header">
+                            <h4>Favorite events</h4>
+                            <p id="favoritesCount" class="export-status">0 saved</p>
+                        </div>
+                        <div id="favoritesList" class="favorite-list"></div>
+                    </div>
                 </div>
             </div>
 
-            <div class="detail-card">
-                <p class="form-help">These forms send the JWT to protected endpoints through the gateway.</p>
-                <div class="mini-banner">
-                    <span class="mini-banner-pill">Step 1</span>
-                    <p>Create a business first. The generated business ID will be inserted automatically into the event form below.</p>
-                </div>
-
-                <form id="businessForm" class="form-stack">
-                    <h3>Create business</h3>
-                    <label class="field">
-                        <span>Name</span>
-                        <input id="businessName" type="text" required placeholder="Tech Corp">
-                    </label>
-                    <label class="field">
-                        <span>Address</span>
-                        <input id="businessAddress" type="text" required placeholder="123 Main Street">
-                    </label>
-                    <label class="field">
-                        <span>City</span>
-                        <input id="businessCity" type="text" required placeholder="Madrid">
-                    </label>
-                    <label class="field">
-                        <span>Contact email</span>
-                        <input id="businessContactEmail" type="email" required placeholder="business@example.com">
-                    </label>
-                    <label class="field">
-                        <span>Phone</span>
-                        <input id="businessPhone" type="text" required placeholder="600123456">
-                    </label>
-                    <label class="field">
-                        <span>Description</span>
-                        <textarea id="businessDescription" rows="3" required placeholder="Short business description"></textarea>
-                    </label>
-                    <button class="button button-primary" type="submit">Create Business</button>
-                </form>
-
-                <form id="eventForm" class="form-stack form-section">
-                    <h3>Create event</h3>
-                    <div class="mini-banner subtle-banner">
-                        <span class="mini-banner-pill">Step 2</span>
-                        <p>Once your business exists, create an event linked to that business from the same logged-in session.</p>
+            <div id="businessPane" class="tab-pane hidden">
+                <div class="detail-card compact-card">
+                    <div class="panel-header compact-panel-header">
+                        <div>
+                            <p class="panel-kicker">Business tools</p>
+                            <h3>Create business and events</h3>
+                        </div>
                     </div>
-                    <label class="field">
-                        <span>Business ID</span>
-                        <input id="eventBusinessId" type="text" required placeholder="Created business ID appears here">
-                    </label>
-                    <label class="field">
-                        <span>Title</span>
-                        <input id="eventTitleInput" type="text" required placeholder="Tech Conference 2026">
-                    </label>
-                    <label class="field">
-                        <span>Description</span>
-                        <textarea id="eventDescriptionInput" rows="3" required placeholder="Event description"></textarea>
-                    </label>
-                    <label class="field">
-                        <span>Venue</span>
-                        <input id="eventVenueInput" type="text" required placeholder="Convention Center">
-                    </label>
-                    <label class="field">
-                        <span>City</span>
-                        <input id="eventCityInput" type="text" required placeholder="Madrid">
-                    </label>
-                    <label class="field">
-                        <span>Start time</span>
-                        <input id="eventStartInput" type="datetime-local" required>
-                    </label>
-                    <label class="field">
-                        <span>End time</span>
-                        <input id="eventEndInput" type="datetime-local" required>
-                    </label>
-                    <p class="form-help compact-help">The UI converts your local date and time into the UTC format expected by the backend.</p>
-                    <button class="button button-primary" type="submit">Create Event</button>
-                </form>
+                    <p class="form-help">These forms send the JWT to protected endpoints through the gateway.</p>
+
+                    <details class="flow-block" open>
+                        <summary>Create business</summary>
+                        <div class="mini-banner flow-content">
+                            <span class="mini-banner-pill">Step 1</span>
+                            <p>Create a business first. The generated business ID will be inserted automatically into the event form below.</p>
+                        </div>
+
+                        <form id="businessForm" class="form-stack flow-content">
+                            <label class="field">
+                                <span>Name</span>
+                                <input id="businessName" type="text" required placeholder="Tech Corp">
+                            </label>
+                            <label class="field">
+                                <span>Address</span>
+                                <input id="businessAddress" type="text" required placeholder="123 Main Street">
+                            </label>
+                            <label class="field">
+                                <span>City</span>
+                                <input id="businessCity" type="text" required placeholder="Madrid">
+                            </label>
+                            <label class="field">
+                                <span>Contact email</span>
+                                <input id="businessContactEmail" type="email" required placeholder="business@example.com">
+                            </label>
+                            <label class="field">
+                                <span>Phone</span>
+                                <input id="businessPhone" type="text" required placeholder="600123456">
+                            </label>
+                            <label class="field">
+                                <span>Description</span>
+                                <textarea id="businessDescription" rows="3" required placeholder="Short business description"></textarea>
+                            </label>
+                            <button class="button button-primary" type="submit">Create Business</button>
+                        </form>
+                    </details>
+
+                    <details class="flow-block" open>
+                        <summary>Create event</summary>
+                        <div class="mini-banner subtle-banner flow-content">
+                            <span class="mini-banner-pill">Step 2</span>
+                            <p>Once your business exists, create an event linked to that business from the same logged-in session.</p>
+                        </div>
+
+                        <form id="eventForm" class="form-stack flow-content">
+                            <label class="field">
+                                <span>Business ID</span>
+                                <input id="eventBusinessId" type="text" required placeholder="Created business ID appears here">
+                            </label>
+                            <label class="field">
+                                <span>Title</span>
+                                <input id="eventTitleInput" type="text" required placeholder="Tech Conference 2026">
+                            </label>
+                            <label class="field">
+                                <span>Description</span>
+                                <textarea id="eventDescriptionInput" rows="3" required placeholder="Event description"></textarea>
+                            </label>
+                            <label class="field">
+                                <span>Venue</span>
+                                <input id="eventVenueInput" type="text" required placeholder="Convention Center">
+                            </label>
+                            <label class="field">
+                                <span>City</span>
+                                <input id="eventCityInput" type="text" required placeholder="Madrid">
+                            </label>
+                            <label class="field">
+                                <span>Start time</span>
+                                <input id="eventStartInput" type="datetime-local" required>
+                            </label>
+                            <label class="field">
+                                <span>End time</span>
+                                <input id="eventEndInput" type="datetime-local" required>
+                            </label>
+                            <div id="competitionStatus" class="inline-status competition-status" aria-live="polite">
+                                We will check if there are other events at the same time and venue before publishing.
+                            </div>
+                            <p class="form-help compact-help">The UI converts your local date and time into the UTC format expected by the backend.</p>
+                            <button class="button button-primary" type="submit">Create Event</button>
+                        </form>
+                    </details>
+
+                    <details class="flow-block">
+                        <summary>Check venue availability</summary>
+                        <form id="availabilityForm" class="form-stack flow-content">
+                            <label class="field">
+                                <span>Venue</span>
+                                <input id="availabilityVenueInput" type="text" placeholder="Convention Center">
+                            </label>
+                            <label class="field">
+                                <span>Date</span>
+                                <input id="availabilityDateInput" type="date">
+                            </label>
+                            <button class="button button-secondary" type="submit">Check Availability</button>
+                        </form>
+                        <div id="availabilityStatus" class="inline-status">Search for free time slots at a venue.</div>
+                        <div id="availabilityList" class="availability-list"></div>
+                    </details>
+                </div>
             </div>
 
             <div id="protectedStatus" class="inline-status" aria-live="polite">Login as BUSINESS to unlock protected actions.</div>
@@ -194,25 +303,32 @@
                 </div>
                 <p id="statusBadge" class="status-badge">Loading events...</p>
             </div>
+            <details class="filter-shell">
+                <summary>Catalog filters</summary>
+                <form id="filterForm" class="filter-grid">
+                    <label class="field">
+                        <span>Search</span>
+                        <input id="filterKeyword" type="text" placeholder="Title or description">
+                    </label>
+                    <label class="field">
+                        <span>City</span>
+                        <input id="filterCity" type="text" placeholder="Madrid">
+                    </label>
+                    <label class="field">
+                        <span>Date</span>
+                        <input id="filterDate" type="date">
+                    </label>
+                    <label class="field">
+                        <span>Business ID</span>
+                        <input id="filterBusinessId" type="text" placeholder="1">
+                    </label>
+                    <div class="filter-actions">
+                        <button class="button button-primary" type="submit">Apply Filters</button>
+                        <button id="clearFiltersButton" class="button button-tertiary" type="button">Clear</button>
+                    </div>
+                </form>
+            </details>
             <div id="eventList" class="event-list" aria-live="polite"></div>
-        </section>
-
-        <section class="panel panel-side">
-            <div class="panel-header">
-                <div>
-                    <p class="panel-kicker">Notifications</p>
-                    <h2>Recent activity</h2>
-                </div>
-                <p id="notificationBadge" class="status-badge neutral-badge">0 unread</p>
-            </div>
-
-            <div class="inline-actions">
-                <button id="refreshNotificationsButton" class="button button-secondary" type="button">
-                    Refresh notifications
-                </button>
-            </div>
-
-            <div id="notificationList" class="event-list" aria-live="polite"></div>
         </section>
 
         <aside class="panel panel-side">
@@ -275,6 +391,51 @@
 
                 <section class="detail-section">
                     <div class="exports-header">
+                        <h4>User actions</h4>
+                        <p id="favoriteBadge" class="export-status">Login to use favorites</p>
+                    </div>
+                    <div class="detail-actions">
+                        <button id="favoriteButton" class="button button-secondary" type="button">Add to favorites</button>
+                    </div>
+                </section>
+
+                <section class="detail-section">
+                    <div class="exports-header">
+                        <h4>Business actions</h4>
+                        <p id="manageEventBadge" class="export-status">Login as BUSINESS to manage events</p>
+                    </div>
+
+                    <form id="eventUpdateForm" class="form-stack">
+                        <label class="field">
+                            <span>Title</span>
+                            <input id="updateEventTitleInput" type="text" placeholder="Updated title">
+                        </label>
+                        <label class="field">
+                            <span>Description</span>
+                            <textarea id="updateEventDescriptionInput" rows="3" placeholder="Updated description"></textarea>
+                        </label>
+                        <label class="field">
+                            <span>Start time</span>
+                            <input id="updateEventStartInput" type="datetime-local">
+                        </label>
+                        <label class="field">
+                            <span>End time</span>
+                            <input id="updateEventEndInput" type="datetime-local">
+                        </label>
+                        <label class="field">
+                            <span>Venue</span>
+                            <input id="updateEventVenueInput" type="text" placeholder="Updated venue">
+                        </label>
+                        <div class="inline-actions">
+                            <button id="updateEventButton" class="button button-primary" type="submit">Update Event</button>
+                            <button id="deleteEventButton" class="button button-tertiary danger-button" type="button">Delete Event</button>
+                        </div>
+                    </form>
+                    <div id="manageEventStatus" class="inline-status">Select an event to prepare update or delete actions.</div>
+                </section>
+
+                <section class="detail-section">
+                    <div class="exports-header">
                         <h4>Export to calendar</h4>
                         <p id="exportStatus" class="export-status">Ready</p>
                     </div>
@@ -284,30 +445,12 @@
                         <a id="icsLink" class="button button-tertiary disabled-link" href="#" target="_blank" rel="noreferrer">Download ICS</a>
                     </div>
                 </section>
+
             </div>
         </aside>
     </main>
 </div>
 
-
-<div id="conflictModal" class="modal hidden">
-    <div class="modal-content">
-        <h3>⚠️ Scheduling conflict</h3>
-        <p>
-            There are already events scheduled at this venue during the selected time.
-            Creating this event may lead to competitors.
-        </p>
-
-        <div class="modal-actions">
-            <button id="cancelConflictBtn" class="button button-tertiary" type="button">
-                Cancel
-            </button>
-            <button id="confirmConflictBtn" class="button button-primary" type="button">
-                Create anyway
-            </button>
-        </div>
-    </div>
-</div>
-<script src="/app.js"></script>
+<script type="module" src="/app.js?v=20260416b"></script>
 </body>
 </html>
