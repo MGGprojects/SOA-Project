@@ -36,7 +36,7 @@ public class EventService {
     /**
      * Creates a new event.
      * - Calls Business Service to verify the user has permission to create events for the business.
-     * - Checks for venue time conflicts.
+     * - Allows overlapping events so the frontend can warn about competition without blocking publication.
      * - Persists to database.
      * - Publishes an event-created message to RabbitMQ.
      */
@@ -64,13 +64,7 @@ public class EventService {
             throw new IllegalArgumentException("endTime must be after startTime");
         }
 
-        // 3. Check venue conflicts
-        List<Event> conflicts = eventRepository.findOverlappingEvents(request.getVenue(), startTime, endTime);
-        if (!conflicts.isEmpty()) {
-            throw new IllegalStateException("Venue '" + request.getVenue() + "' has a scheduling conflict for the requested time range");
-        }
-
-        // 4. Persist
+        // 3. Persist
         Event event = new Event();
         event.setTitle(request.getTitle());
         event.setDescription(request.getDescription());
@@ -83,7 +77,7 @@ public class EventService {
 
         Event saved = eventRepository.save(event);
 
-        // 5. Publish to RabbitMQ (fire-and-forget)
+        // 4. Publish to RabbitMQ (fire-and-forget)
         try {
             EventCreatedMessage message = new EventCreatedMessage(
                     saved.getId().toString(),
@@ -235,13 +229,6 @@ public class EventService {
                     if (request.getVenue() != null) {
                         newVenue = request.getVenue();
                         existing.setVenue(newVenue);
-                    }
-
-                    // Check venue conflicts (excluding this event itself)
-                    List<Event> conflicts = eventRepository.findOverlappingEvents(newVenue, newStart, newEnd);
-                    conflicts.removeIf(e -> e.getId().equals(existing.getId()));
-                    if (!conflicts.isEmpty()) {
-                        throw new IllegalStateException("Venue '" + newVenue + "' has a scheduling conflict for the requested time range");
                     }
 
                     Event updated = eventRepository.save(existing);
