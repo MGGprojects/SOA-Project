@@ -130,7 +130,7 @@ public class NotificationService {
                 notification.getEventEndTime(),
                 notification.getBusinessId(),
                 notification.isRead(),
-                notification.getCreatedAt().toString()
+                notification.getCreatedAt() != null ? notification.getCreatedAt().toString() : null
         );
     }
 }

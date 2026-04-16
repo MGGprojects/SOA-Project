@@ -22,6 +22,10 @@ $services = @(
         Path = "calendar-export-service"
     },
     @{
+        Name = "notification-service"
+        Path = "notification-service"
+    },
+    @{
         Name = "gateway-service"
         Path = "gateway-service"
     }
