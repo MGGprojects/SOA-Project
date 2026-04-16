@@ -8,15 +8,13 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/styles.css">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 </head>
 <body>
 <div id="toastContainer" class="toast-container" aria-live="polite"></div>
 <div class="page-shell">
     <header class="hero">
         <div class="hero-copy">
-            <p class="eyebrow">Milestone 45 Demo</p>
+            <p class="eyebrow">Milestone 2 Demo</p>
             <h1>Discover local events and export them to your calendar.</h1>
             <p class="hero-text">
                 This frontend talks only to the API gateway. The gateway routes requests to the existing
@@ -199,6 +197,24 @@
             <div id="eventList" class="event-list" aria-live="polite"></div>
         </section>
 
+        <section class="panel panel-side">
+            <div class="panel-header">
+                <div>
+                    <p class="panel-kicker">Notifications</p>
+                    <h2>Recent activity</h2>
+                </div>
+                <p id="notificationBadge" class="status-badge neutral-badge">0 unread</p>
+            </div>
+
+            <div class="inline-actions">
+                <button id="refreshNotificationsButton" class="button button-secondary" type="button">
+                    Refresh notifications
+                </button>
+            </div>
+
+            <div id="notificationList" class="event-list" aria-live="polite"></div>
+        </section>
+
         <aside class="panel panel-side">
             <div class="panel-header">
                 <div>
@@ -243,8 +259,18 @@
                 </section>
 
                 <section class="detail-section">
-                    <h4>Location</h4>
-                    <div id="map" style="height: 250px; border-radius:12px;"></div>
+                    <h4>Location map</h4>
+                    <div class="map-wrapper">
+                        <iframe
+                                id="detailMap"
+                                class="detail-map"
+                                title="Event location map"
+                                src=""
+                                loading="lazy"
+                                referrerpolicy="no-referrer-when-downgrade"
+                                allowfullscreen>
+                        </iframe>
+                    </div>
                 </section>
 
                 <section class="detail-section">
@@ -263,6 +289,25 @@
     </main>
 </div>
 
+
+<div id="conflictModal" class="modal hidden">
+    <div class="modal-content">
+        <h3>⚠️ Scheduling conflict</h3>
+        <p>
+            There are already events scheduled at this venue during the selected time.
+            Creating this event may lead to competitors.
+        </p>
+
+        <div class="modal-actions">
+            <button id="cancelConflictBtn" class="button button-tertiary" type="button">
+                Cancel
+            </button>
+            <button id="confirmConflictBtn" class="button button-primary" type="button">
+                Create anyway
+            </button>
+        </div>
+    </div>
+</div>
 <script src="/app.js"></script>
 </body>
 </html>
